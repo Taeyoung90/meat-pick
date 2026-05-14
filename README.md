@@ -101,6 +101,7 @@ The prototype includes basic live-analysis limits:
 
 - Maximum images per live analysis: 3 by default
 - Maximum live analyses per day: 10 by default
+- Maximum label OCR calls per day: 15 by default
 - Images are resized before being sent to the server
 - Failed calls fall back to local heuristic analysis
 

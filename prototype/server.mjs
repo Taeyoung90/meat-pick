@@ -10,6 +10,7 @@ const port = Number(process.env.PORT || 4173);
 const openaiModel = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const maxImagesPerAnalysis = Number(process.env.MAX_IMAGES_PER_ANALYSIS || 3);
 const maxDailyLiveCalls = Number(process.env.MAX_DAILY_LIVE_CALLS || 10);
+const maxDailyOcrCalls = Number(process.env.MAX_DAILY_OCR_CALLS || 15);
 const maxRequestBytes = Number(process.env.MAX_ANALYZE_BODY_BYTES || 4_500_000);
 const usageStatePath = join(root, "usage-state.json");
 const serverLogPath = join(root, "server.log");
@@ -37,6 +38,11 @@ createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/ocr-label") {
+    await handleOcrLabel(request, response);
+    return;
+  }
+
   const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
   const target = normalize(join(root, pathname));
 
@@ -61,7 +67,9 @@ async function handleStatus(response) {
     model: openaiModel,
     maxImagesPerAnalysis,
     maxDailyLiveCalls,
+    maxDailyOcrCalls,
     dailyCalls: usage.dailyCalls,
+    dailyOcrCalls: usage.dailyOcrCalls,
     apiKeyConfigured: Boolean(await readOpenAiKey()),
   });
 }
@@ -177,6 +185,97 @@ async function handleAnalyze(request, response) {
   }
 }
 
+async function handleOcrLabel(request, response) {
+  const requestId = createRequestId();
+  try {
+    logStage("ocr:request-received", { requestId });
+    const bodyText = await readRequestBody(request, maxRequestBytes);
+    const payload = JSON.parse(bodyText);
+    const candidateId = String(payload.candidateId || "");
+    const imageDataUrl = String(payload.imageDataUrl || "");
+
+    logStage("ocr:payload-parsed", {
+      requestId,
+      candidateId,
+      bodyBytes: Buffer.byteLength(bodyText),
+    });
+
+    if (!candidateId || !isValidImageDataUrl(imageDataUrl)) {
+      logStage("ocr:rejected", { requestId, reason: "INVALID_LABEL_IMAGE" });
+      writeJson(response, 400, { error: "INVALID_LABEL_IMAGE" });
+      return;
+    }
+
+    const usage = await readUsageState();
+    if (usage.dailyOcrCalls >= maxDailyOcrCalls) {
+      logStage("ocr:rejected", {
+        requestId,
+        reason: "DAILY_OCR_LIMIT_REACHED",
+        dailyOcrCalls: usage.dailyOcrCalls,
+        maxDailyOcrCalls,
+      });
+      writeJson(response, 429, {
+        error: "DAILY_OCR_LIMIT_REACHED",
+        message: `Daily OCR limit reached: ${maxDailyOcrCalls}`,
+      });
+      return;
+    }
+
+    const apiKey = await readOpenAiKey();
+    if (!apiKey) {
+      logStage("ocr:rejected", { requestId, reason: "OPENAI_API_KEY_MISSING" });
+      writeJson(response, 500, { error: "OPENAI_API_KEY_MISSING" });
+      return;
+    }
+
+    logStage("openai:ocr-request-start", {
+      requestId,
+      candidateId,
+      model: openaiModel,
+      dailyOcrCallsBefore: usage.dailyOcrCalls,
+      imageBytesApprox: Math.round((imageDataUrl.length * 3) / 4),
+    });
+
+    const result = await callOpenAiForLabel({ apiKey, candidateId, imageDataUrl, requestId });
+    await writeUsageState({
+      ...usage,
+      dailyOcrCalls: usage.dailyOcrCalls + 1,
+      totalOcrCalls: usage.totalOcrCalls + 1,
+      lastOcrCallAt: new Date().toISOString(),
+      lastOcrModel: openaiModel,
+    });
+
+    logStage("ocr:response-ready", {
+      requestId,
+      candidateId,
+      confidence: result.confidence,
+      extracted: safeLabelLog(result),
+      dailyOcrCallsAfter: usage.dailyOcrCalls + 1,
+    });
+
+    writeJson(response, 200, {
+      ...result,
+      source: "openai",
+      model: openaiModel,
+      limits: {
+        dailyOcrCalls: usage.dailyOcrCalls + 1,
+        maxDailyOcrCalls,
+      },
+    });
+  } catch (error) {
+    const status = error.code === "REQUEST_TOO_LARGE" ? 413 : 500;
+    logStage("ocr:error", {
+      requestId,
+      code: error.code || "OCR_FAILED",
+      message: error.message || "OCR failed.",
+    });
+    writeJson(response, status, {
+      error: error.code || "OCR_FAILED",
+      message: error.message || "OCR failed.",
+    });
+  }
+}
+
 async function callOpenAi({ apiKey, preference, candidates, requestId }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000);
@@ -258,6 +357,114 @@ async function callOpenAi({ apiKey, preference, candidates, requestId }) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function callOpenAiForLabel({ apiKey, candidateId, imageDataUrl, requestId }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: openaiModel,
+        temperature: 0,
+        max_tokens: 700,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You extract Korean supermarket meat label information. Return strict JSON only. If a field is unclear, return null and add a warning. Do not infer values that are not visible.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: buildLabelOcrPrompt(candidateId),
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageDataUrl,
+                  detail: "low",
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const body = await response.json();
+    logStage("openai:ocr-response-received", {
+      requestId,
+      status: response.status,
+      usage: body?.usage
+        ? {
+            prompt_tokens: body.usage.prompt_tokens,
+            completion_tokens: body.usage.completion_tokens,
+            total_tokens: body.usage.total_tokens,
+          }
+        : null,
+    });
+
+    if (!response.ok) {
+      const message = body?.error?.message || `OpenAI API error: ${response.status}`;
+      const error = new Error(message);
+      error.code = mapOpenAiErrorCode(body?.error?.code, message);
+      throw error;
+    }
+
+    const parsed = JSON.parse(body?.choices?.[0]?.message?.content || "{}");
+    const result = sanitizeLabelResult(parsed);
+    logStage("openai:ocr-json-parsed", {
+      requestId,
+      candidateId,
+      confidence: result.confidence,
+      extracted: safeLabelLog(result),
+    });
+    return result;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildLabelOcrPrompt(candidateId) {
+  return `
+고기 가격표/라벨 사진에서 구매 정보를 추출해 주세요.
+
+candidateId: ${candidateId}
+
+반드시 아래 JSON 형식으로만 답하세요.
+{
+  "candidateId": "${candidateId}",
+  "price": 18500,
+  "weightGram": 320,
+  "pricePer100g": 5780,
+  "grade": "1+",
+  "origin": "한우",
+  "cut": "등심",
+  "expiryDate": "2026-05-18",
+  "packagedDate": "2026-05-15",
+  "discount": "20%",
+  "confidence": "high | medium | low",
+  "warnings": ["라벨 일부가 반사되어 가격 확인 신뢰도가 낮습니다."]
+}
+
+원칙:
+- 보이지 않거나 확실하지 않은 값은 null로 주세요.
+- 숫자는 쉼표 없이 number로 주세요.
+- 날짜는 가능하면 YYYY-MM-DD로 주세요. 불확실하면 원문 문자열 대신 null로 주세요.
+- 가격, 중량, 100g당 가격 중 일부만 보이면 보이는 값만 채우세요.
+- 공식 품질 판정이나 식품 안전 판정은 하지 마세요.
+`.trim();
 }
 
 function buildAnalysisPrompt(preference, candidates) {
@@ -390,6 +597,23 @@ function sanitizeLlmResult(result, candidates) {
   };
 }
 
+function sanitizeLabelResult(result) {
+  return {
+    candidateId: String(result.candidateId || ""),
+    price: toPositiveNumber(result.price),
+    weightGram: toPositiveNumber(result.weightGram),
+    pricePer100g: toPositiveNumber(result.pricePer100g),
+    grade: optionalString(result.grade, 30),
+    origin: optionalString(result.origin, 30),
+    cut: optionalString(result.cut, 40),
+    expiryDate: optionalString(result.expiryDate, 30),
+    packagedDate: optionalString(result.packagedDate, 30),
+    discount: optionalString(result.discount, 30),
+    confidence: ["high", "medium", "low"].includes(result.confidence) ? result.confidence : "medium",
+    warnings: Array.isArray(result.warnings) ? result.warnings.map(String).slice(0, 4) : [],
+  };
+}
+
 function normalizeCandidatePayload(candidate) {
   const purchase = candidate.purchase || {};
   const price = toPositiveNumber(purchase.price);
@@ -451,24 +675,28 @@ async function readOpenAiKey() {
 async function readUsageState() {
   const today = new Date().toISOString().slice(0, 10);
   if (!existsSync(usageStatePath)) {
-    return { date: today, dailyCalls: 0, totalCalls: 0 };
+    return { date: today, dailyCalls: 0, dailyOcrCalls: 0, totalCalls: 0, totalOcrCalls: 0 };
   }
 
   try {
     const usage = JSON.parse(await readFile(usageStatePath, "utf8"));
     if (usage.date !== today) {
-      return { ...usage, date: today, dailyCalls: 0 };
+      return { ...usage, date: today, dailyCalls: 0, dailyOcrCalls: 0 };
     }
     return {
       date: today,
       dailyCalls: Number(usage.dailyCalls || 0),
+      dailyOcrCalls: Number(usage.dailyOcrCalls || 0),
       totalCalls: Number(usage.totalCalls || 0),
+      totalOcrCalls: Number(usage.totalOcrCalls || 0),
       lastCallAt: usage.lastCallAt,
       lastModel: usage.lastModel,
       lastImageCount: usage.lastImageCount,
+      lastOcrCallAt: usage.lastOcrCallAt,
+      lastOcrModel: usage.lastOcrModel,
     };
   } catch {
-    return { date: today, dailyCalls: 0, totalCalls: 0 };
+    return { date: today, dailyCalls: 0, dailyOcrCalls: 0, totalCalls: 0, totalOcrCalls: 0 };
   }
 }
 
@@ -534,6 +762,27 @@ function safeCandidateLog(candidate) {
     imageBytesApprox: Math.round((candidate.imageDataUrl.length * 3) / 4),
     purchase: candidate.purchase,
   };
+}
+
+function safeLabelLog(result) {
+  return {
+    price: result.price,
+    weightGram: result.weightGram,
+    pricePer100g: result.pricePer100g,
+    grade: result.grade,
+    origin: result.origin,
+    cut: result.cut,
+    expiryDate: result.expiryDate,
+    packagedDate: result.packagedDate,
+    discount: result.discount,
+  };
+}
+
+function optionalString(value, maxLength) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  return String(value).slice(0, maxLength);
 }
 
 function logStage(stage, details = {}) {

@@ -27,6 +27,33 @@ candidateGrid.addEventListener("input", (event) => {
   updatePricePer100g(candidate);
 });
 
+candidateGrid.addEventListener("change", async (event) => {
+  const input = event.target.closest("[data-label-input]");
+  if (!input) return;
+
+  const candidate = state.candidates.find((item) => item.id === input.dataset.candidateId);
+  const file = input.files?.[0];
+  if (!candidate || !file) return;
+
+  if (candidate.labelImageUrl) {
+    URL.revokeObjectURL(candidate.labelImageUrl);
+  }
+
+  candidate.labelFile = file;
+  candidate.labelImageUrl = URL.createObjectURL(file);
+  candidate.ocrStatus = "라벨 사진 선택됨";
+  renderCandidates();
+});
+
+candidateGrid.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-read-label]");
+  if (!button) return;
+
+  const candidate = state.candidates.find((item) => item.id === button.dataset.candidateId);
+  if (!candidate) return;
+  await readLabelForCandidate(candidate);
+});
+
 imageInput.addEventListener("change", async (event) => {
   const files = Array.from(event.target.files || []).slice(0, 5);
   state.candidates = await Promise.all(files.map(createCandidate));
@@ -75,8 +102,15 @@ async function createCandidate(file, index) {
       weightGram: "",
       grade: "",
       origin: "",
+      cut: "",
+      expiryDate: "",
+      packagedDate: "",
+      discount: "",
       pricePer100g: null,
     },
+    labelFile: null,
+    labelImageUrl: "",
+    ocrStatus: "",
   };
 }
 
@@ -113,6 +147,7 @@ function renderCandidates() {
               ${metricRow("사진 품질", balanceScore)}
             </ul>
             ${purchaseInputs(candidate)}
+            ${labelOcrControls(candidate)}
           </div>
         </article>
       `;
@@ -139,7 +174,38 @@ function purchaseInputs(candidate) {
         <span>원산지</span>
         <input data-candidate-id="${candidate.id}" data-candidate-field="origin" placeholder="예: 한우" value="${escapeHtml(candidate.purchase.origin)}" />
       </label>
+      <label>
+        <span>부위</span>
+        <input data-candidate-id="${candidate.id}" data-candidate-field="cut" placeholder="예: 등심" value="${escapeHtml(candidate.purchase.cut)}" />
+      </label>
+      <label>
+        <span>할인</span>
+        <input data-candidate-id="${candidate.id}" data-candidate-field="discount" placeholder="예: 20%" value="${escapeHtml(candidate.purchase.discount)}" />
+      </label>
       <p id="${candidate.id}-price-per-100g" class="price-per-100g">${formatPricePer100g(candidate)}</p>
+    </div>
+  `;
+}
+
+function labelOcrControls(candidate) {
+  const preview = candidate.labelImageUrl
+    ? `<img class="label-preview" src="${candidate.labelImageUrl}" alt="${candidate.label} 라벨 사진" />`
+    : `<div class="label-placeholder">라벨 사진 없음</div>`;
+
+  return `
+    <div class="label-ocr-box">
+      <div class="label-ocr-header">
+        <strong>가격표/라벨</strong>
+        <span id="${candidate.id}-ocr-status">${escapeHtml(candidate.ocrStatus || "라벨을 추가하면 자동 입력할 수 있어요.")}</span>
+      </div>
+      ${preview}
+      <div class="label-actions">
+        <label class="mini-file-button">
+          라벨 사진 선택
+          <input data-label-input data-candidate-id="${candidate.id}" type="file" accept="image/*" />
+        </label>
+        <button data-read-label data-candidate-id="${candidate.id}" type="button" ${candidate.labelFile ? "" : "disabled"}>라벨 읽기</button>
+      </div>
     </div>
   `;
 }
@@ -161,6 +227,80 @@ function formatPricePer100g(candidate) {
     : "가격과 중량을 넣으면 100g당 가격을 계산합니다.";
 }
 
+async function readLabelForCandidate(candidate) {
+  if (!candidate.labelImageUrl) return;
+
+  setCandidateOcrStatus(candidate, "라벨 읽는 중...");
+
+  try {
+    const imageDataUrl = await resizeImageForApi(candidate.labelImageUrl);
+    const response = await fetch("/api/ocr-label", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        candidateId: candidate.id,
+        imageDataUrl,
+      }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(readableOcrError(payload));
+    }
+
+    applyOcrResult(candidate, payload);
+    if (payload.limits && state.serverStatus) {
+      state.serverStatus.dailyOcrCalls = payload.limits.dailyOcrCalls;
+      state.serverStatus.maxDailyOcrCalls = payload.limits.maxDailyOcrCalls;
+      updateLiveHint();
+    }
+    renderCandidates();
+  } catch (error) {
+    console.warn("Label OCR failed.", error);
+    setCandidateOcrStatus(candidate, error.message || "라벨 읽기에 실패했습니다.");
+  }
+}
+
+function applyOcrResult(candidate, payload) {
+  const fields = ["price", "weightGram", "grade", "origin", "cut", "expiryDate", "packagedDate", "discount"];
+  fields.forEach((field) => {
+    if (payload[field] !== null && payload[field] !== undefined && payload[field] !== "") {
+      candidate.purchase[field] = String(payload[field]);
+    }
+  });
+
+  updatePricePer100g(candidate);
+  candidate.ocrStatus = confidenceText(payload.confidence, payload.warnings);
+}
+
+function setCandidateOcrStatus(candidate, message) {
+  candidate.ocrStatus = message;
+  const element = document.querySelector(`#${candidate.id}-ocr-status`);
+  if (element) {
+    element.textContent = message;
+  }
+}
+
+function confidenceText(confidence, warnings = []) {
+  const label = confidenceLabelFromLlm(confidence);
+  const warningText = warnings?.length ? ` · ${warnings.join(", ")}` : "";
+  return `라벨 읽기 완료: 신뢰도 ${label}${warningText}`;
+}
+
+function readableOcrError(payload) {
+  const error = payload?.error;
+  if (error === "OPENAI_QUOTA_EXCEEDED") {
+    return "OpenAI API 쿼터 또는 결제 한도 때문에 라벨을 읽지 못했습니다.";
+  }
+  if (error === "OPENAI_AUTH_FAILED") {
+    return "OpenAI API key 인증에 실패했습니다.";
+  }
+  if (error === "DAILY_OCR_LIMIT_REACHED") {
+    return "오늘의 라벨 읽기 횟수 제한에 도달했습니다.";
+  }
+  return payload?.message || payload?.error || "라벨 읽기에 실패했습니다.";
+}
+
 async function fetchServerStatus() {
   try {
     const response = await fetch("/api/status");
@@ -175,8 +315,9 @@ function updateLiveHint() {
   if (!state.serverStatus) return;
 
   const remaining = Math.max(0, state.serverStatus.maxDailyLiveCalls - state.serverStatus.dailyCalls);
+  const ocrRemaining = Math.max(0, (state.serverStatus.maxDailyOcrCalls || 0) - (state.serverStatus.dailyOcrCalls || 0));
   inputHint.textContent = state.serverStatus.apiKeyConfigured
-    ? `실제 LLM 분석이 켜져 있습니다. 오늘 남은 호출: ${remaining}회, 1회 최대 ${state.serverStatus.maxImagesPerAnalysis}장.`
+    ? `실제 LLM 분석이 켜져 있습니다. 분석 ${remaining}회, 라벨 읽기 ${ocrRemaining}회 남음.`
     : "API key가 없어 임시 분석만 사용할 수 있습니다.";
 }
 
@@ -553,6 +694,10 @@ function normalizePurchase(purchase) {
     pricePer100g: toPositiveNumber(purchase.pricePer100g),
     grade: purchase.grade || "",
     origin: purchase.origin || "",
+    cut: purchase.cut || "",
+    expiryDate: purchase.expiryDate || "",
+    packagedDate: purchase.packagedDate || "",
+    discount: purchase.discount || "",
   };
 }
 
@@ -564,6 +709,8 @@ function purchaseSummary(purchase) {
   if (normalized.pricePer100g) parts.push(`100g당 ${normalized.pricePer100g.toLocaleString("ko-KR")}원`);
   if (normalized.grade) parts.push(`등급 ${escapeHtml(normalized.grade)}`);
   if (normalized.origin) parts.push(escapeHtml(normalized.origin));
+  if (normalized.cut) parts.push(escapeHtml(normalized.cut));
+  if (normalized.discount) parts.push(`할인 ${escapeHtml(normalized.discount)}`);
   return parts.length ? parts.join(" · ") : "구매 정보 미입력";
 }
 

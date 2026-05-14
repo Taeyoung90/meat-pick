@@ -175,6 +175,7 @@
 
 - 1회 실제 LLM 분석 이미지 수 기본값: 3장
 - 1일 실제 LLM 분석 호출 수 기본값: 10회
+- 1일 라벨 OCR 호출 수 기본값: 15회
 - 이미지 전송 전 브라우저에서 긴 변 768px, JPEG 품질 0.72로 축소
 - 서버 요청 본문 크기 기본 제한: 약 4.5MB
 - 실패한 OpenAI 호출은 일일 사용량에 더하지 않는다.
@@ -186,6 +187,6 @@
 $env:OPENAI_MODEL="gpt-4.1-mini"
 $env:MAX_IMAGES_PER_ANALYSIS="3"
 $env:MAX_DAILY_LIVE_CALLS="10"
+$env:MAX_DAILY_OCR_CALLS="15"
 $env:MAX_ANALYZE_BODY_BYTES="4500000"
 ```
-
