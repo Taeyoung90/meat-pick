@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>고기픽 MVP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">소고기 구이용 MVP</p>
+          <h1>지금 진열대에서 고를 고기를 비교해보세요</h1>
+          <p class="hero-copy">
+            후보 사진을 2장 이상 올리면 사진 기준으로 가장 좋아 보이는 후보와 이유를 정리합니다.
+          </p>
+        </div>
+        <div class="mode-panel" aria-label="현재 분석 모드">
+          <span>현재 모드</span>
+          <strong>소고기 구이용</strong>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="고기 후보 비교 도구">
+        <aside class="control-panel">
+          <div class="panel-section">
+            <h2>취향 기준</h2>
+            <div class="preference-grid" role="radiogroup" aria-label="추천 취향 기준">
+              <label>
+                <input type="radio" name="preference" value="balanced" checked />
+                <span>균형</span>
+              </label>
+              <label>
+                <input type="radio" name="preference" value="lean" />
+                <span>담백함</span>
+              </label>
+              <label>
+                <input type="radio" name="preference" value="rich" />
+                <span>고소함</span>
+              </label>
+              <label>
+                <input type="radio" name="preference" value="tender" />
+                <span>부드러움</span>
+              </label>
+              <label>
+                <input type="radio" name="preference" value="value" />
+                <span>가성비</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <h2>후보 사진</h2>
+            <label class="drop-zone" for="imageInput">
+              <input id="imageInput" type="file" accept="image/*" multiple />
+              <span class="drop-title">사진 선택</span>
+              <span class="drop-copy">2~5장의 소고기 후보 사진을 올려주세요.</span>
+            </label>
+            <p id="inputHint" class="hint">고기 전체가 보이고 비닐 반사가 적을수록 좋아요.</p>
+          </div>
+
+          <div class="action-row">
+            <button id="analyzeButton" class="primary-button" type="button" disabled>분석하기</button>
+            <button id="resetButton" class="secondary-button" type="button">다시 비교</button>
+          </div>
+        </aside>
+
+        <section class="candidate-area" aria-live="polite">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">후보 목록</p>
+              <h2>업로드한 고기</h2>
+            </div>
+            <span id="candidateCount" class="count-pill">0 / 5</span>
+          </div>
+          <div id="candidateGrid" class="candidate-grid empty-state">
+            <p>아직 후보 사진이 없습니다.</p>
+          </div>
+        </section>
+      </section>
+
+      <section id="resultSection" class="result-section hidden" aria-live="polite">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">분석 결과</p>
+            <h2>오늘의 추천</h2>
+          </div>
+          <span id="confidenceBadge" class="count-pill">신뢰도 대기</span>
+        </div>
+        <div id="recommendationCard" class="recommendation-card"></div>
+        <div id="rankingList" class="ranking-list"></div>
+        <div class="notice-box">
+          사진 기준 참고용 분석입니다. 실제 품질은 보관 상태, 유통기한, 냄새, 포장 상태에 따라 달라질 수 있습니다.
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
