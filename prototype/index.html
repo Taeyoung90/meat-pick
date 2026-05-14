@@ -96,6 +96,31 @@
       </section>
     </main>
 
+    <div id="cropModal" class="crop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
+      <div class="crop-panel">
+        <div class="crop-header">
+          <div>
+            <p class="eyebrow">라벨 영역 지정</p>
+            <h2 id="cropTitle">가격표가 보이는 영역을 맞춰주세요</h2>
+          </div>
+          <button id="cropCloseButton" class="icon-button" type="button" aria-label="닫기">×</button>
+        </div>
+        <div id="cropStage" class="crop-stage">
+          <img id="cropImage" alt="라벨 영역 지정용 후보 사진" />
+          <div id="cropBox" class="crop-box">
+            <span class="crop-handle nw" data-crop-handle="nw"></span>
+            <span class="crop-handle ne" data-crop-handle="ne"></span>
+            <span class="crop-handle sw" data-crop-handle="sw"></span>
+            <span class="crop-handle se" data-crop-handle="se"></span>
+          </div>
+        </div>
+        <div class="crop-actions">
+          <button id="cropResetButton" class="secondary-button" type="button">초기화</button>
+          <button id="cropReadButton" class="primary-button" type="button">이 영역으로 라벨 읽기</button>
+        </div>
+      </div>
+    </div>
+
     <script src="./app.js"></script>
   </body>
 </html>

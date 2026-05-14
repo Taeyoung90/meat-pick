@@ -8,10 +8,22 @@ const resultSection = document.querySelector("#resultSection");
 const recommendationCard = document.querySelector("#recommendationCard");
 const rankingList = document.querySelector("#rankingList");
 const confidenceBadge = document.querySelector("#confidenceBadge");
+const cropModal = document.querySelector("#cropModal");
+const cropStage = document.querySelector("#cropStage");
+const cropImage = document.querySelector("#cropImage");
+const cropBox = document.querySelector("#cropBox");
+const cropCloseButton = document.querySelector("#cropCloseButton");
+const cropResetButton = document.querySelector("#cropResetButton");
+const cropReadButton = document.querySelector("#cropReadButton");
 
 const state = {
   candidates: [],
   serverStatus: null,
+  crop: {
+    candidateId: "",
+    rect: { x: 0.22, y: 0.22, width: 0.56, height: 0.28 },
+    drag: null,
+  },
 };
 
 fetchServerStatus();
@@ -46,12 +58,68 @@ candidateGrid.addEventListener("change", async (event) => {
 });
 
 candidateGrid.addEventListener("click", async (event) => {
+  const noLabelButton = event.target.closest("[data-no-label]");
+  if (noLabelButton) {
+    const candidate = state.candidates.find((item) => item.id === noLabelButton.dataset.candidateId);
+    if (!candidate) return;
+    markNoLabel(candidate);
+    renderCandidates();
+    return;
+  }
+
+  const cropButton = event.target.closest("[data-crop-label]");
+  if (cropButton) {
+    const candidate = state.candidates.find((item) => item.id === cropButton.dataset.candidateId);
+    if (!candidate) return;
+    openCropModal(candidate);
+    return;
+  }
+
   const button = event.target.closest("[data-read-label]");
   if (!button) return;
 
   const candidate = state.candidates.find((item) => item.id === button.dataset.candidateId);
   if (!candidate) return;
   await readLabelForCandidate(candidate);
+});
+
+cropCloseButton.addEventListener("click", closeCropModal);
+cropResetButton.addEventListener("click", () => resetCropRect());
+cropReadButton.addEventListener("click", async () => {
+  const candidate = state.candidates.find((item) => item.id === state.crop.candidateId);
+  if (!candidate) return;
+  const imageDataUrl = await cropCurrentLabelImage();
+  closeCropModal();
+  await readLabelForCandidate(candidate, imageDataUrl);
+});
+
+cropStage.addEventListener("pointerdown", (event) => {
+  if (cropModal.classList.contains("hidden")) return;
+  const handle = event.target.dataset.cropHandle;
+  const isBox = event.target === cropBox;
+  if (!handle && !isBox) return;
+
+  event.preventDefault();
+  cropStage.setPointerCapture(event.pointerId);
+  state.crop.drag = {
+    mode: handle || "move",
+    startX: event.clientX,
+    startY: event.clientY,
+    startRect: { ...state.crop.rect },
+  };
+});
+
+cropStage.addEventListener("pointermove", (event) => {
+  if (!state.crop.drag) return;
+
+  const imageRect = cropImage.getBoundingClientRect();
+  const dx = (event.clientX - state.crop.drag.startX) / imageRect.width;
+  const dy = (event.clientY - state.crop.drag.startY) / imageRect.height;
+  updateCropRectFromDrag(dx, dy);
+});
+
+cropStage.addEventListener("pointerup", () => {
+  state.crop.drag = null;
 });
 
 imageInput.addEventListener("change", async (event) => {
@@ -107,6 +175,7 @@ async function createCandidate(file, index) {
       packagedDate: "",
       discount: "",
       pricePer100g: null,
+      hasLabel: true,
     },
     labelFile: null,
     labelImageUrl: "",
@@ -190,7 +259,7 @@ function purchaseInputs(candidate) {
 function labelOcrControls(candidate) {
   const preview = candidate.labelImageUrl
     ? `<img class="label-preview" src="${candidate.labelImageUrl}" alt="${candidate.label} 라벨 사진" />`
-    : `<div class="label-placeholder">라벨 사진 없음</div>`;
+    : `<div class="label-placeholder">${candidate.purchase.hasLabel ? "라벨 사진 없음" : "가격표 없음으로 표시됨"}</div>`;
 
   return `
     <div class="label-ocr-box">
@@ -200,14 +269,30 @@ function labelOcrControls(candidate) {
       </div>
       ${preview}
       <div class="label-actions">
+        <button data-crop-label data-candidate-id="${candidate.id}" type="button">영역 지정</button>
         <label class="mini-file-button">
           라벨 사진 선택
           <input data-label-input data-candidate-id="${candidate.id}" type="file" accept="image/*" />
         </label>
         <button data-read-label data-candidate-id="${candidate.id}" type="button" ${candidate.labelFile ? "" : "disabled"}>라벨 읽기</button>
+        <button data-no-label data-candidate-id="${candidate.id}" class="ghost-button" type="button">가격표 없음</button>
       </div>
     </div>
   `;
+}
+
+function markNoLabel(candidate) {
+  candidate.purchase.hasLabel = false;
+  candidate.labelFile = null;
+  if (candidate.labelImageUrl) {
+    URL.revokeObjectURL(candidate.labelImageUrl);
+  }
+  candidate.labelImageUrl = "";
+  candidate.ocrStatus = "가격표 없음으로 표시했습니다. 가격 정보 없이 분석합니다.";
+  ["price", "weightGram", "grade", "origin", "cut", "expiryDate", "packagedDate", "discount"].forEach((field) => {
+    candidate.purchase[field] = "";
+  });
+  candidate.purchase.pricePer100g = null;
 }
 
 function updatePricePer100g(candidate) {
@@ -227,13 +312,13 @@ function formatPricePer100g(candidate) {
     : "가격과 중량을 넣으면 100g당 가격을 계산합니다.";
 }
 
-async function readLabelForCandidate(candidate) {
-  if (!candidate.labelImageUrl) return;
+async function readLabelForCandidate(candidate, providedImageDataUrl = "") {
+  if (!candidate.labelImageUrl && !providedImageDataUrl) return;
 
   setCandidateOcrStatus(candidate, "라벨 읽는 중...");
 
   try {
-    const imageDataUrl = await resizeImageForApi(candidate.labelImageUrl);
+    const imageDataUrl = providedImageDataUrl || (await resizeImageForApi(candidate.labelImageUrl));
     const response = await fetch("/api/ocr-label", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -270,6 +355,7 @@ function applyOcrResult(candidate, payload) {
   });
 
   updatePricePer100g(candidate);
+  candidate.purchase.hasLabel = true;
   candidate.ocrStatus = confidenceText(payload.confidence, payload.warnings);
 }
 
@@ -299,6 +385,100 @@ function readableOcrError(payload) {
     return "오늘의 라벨 읽기 횟수 제한에 도달했습니다.";
   }
   return payload?.message || payload?.error || "라벨 읽기에 실패했습니다.";
+}
+
+function openCropModal(candidate) {
+  state.crop.candidateId = candidate.id;
+  cropImage.src = candidate.url;
+  cropModal.classList.remove("hidden");
+  cropImage.onload = () => resetCropRect();
+}
+
+function closeCropModal() {
+  cropModal.classList.add("hidden");
+  state.crop.drag = null;
+}
+
+function resetCropRect() {
+  state.crop.rect = { x: 0.22, y: 0.22, width: 0.56, height: 0.28 };
+  renderCropBox();
+}
+
+function renderCropBox() {
+  const { x, y, width, height } = state.crop.rect;
+  const stageRect = cropStage.getBoundingClientRect();
+  const imageRect = cropImage.getBoundingClientRect();
+  const offsetX = imageRect.left - stageRect.left;
+  const offsetY = imageRect.top - stageRect.top;
+
+  cropBox.style.left = `${offsetX + x * imageRect.width}px`;
+  cropBox.style.top = `${offsetY + y * imageRect.height}px`;
+  cropBox.style.width = `${width * imageRect.width}px`;
+  cropBox.style.height = `${height * imageRect.height}px`;
+}
+
+function updateCropRectFromDrag(dx, dy) {
+  const { mode, startRect } = state.crop.drag;
+  const minSize = 0.08;
+  let next = { ...startRect };
+
+  if (mode === "move") {
+    next.x = startRect.x + dx;
+    next.y = startRect.y + dy;
+  }
+
+  if (mode.includes("e")) {
+    next.width = startRect.width + dx;
+  }
+  if (mode.includes("s")) {
+    next.height = startRect.height + dy;
+  }
+  if (mode.includes("w")) {
+    next.x = startRect.x + dx;
+    next.width = startRect.width - dx;
+  }
+  if (mode.includes("n")) {
+    next.y = startRect.y + dy;
+    next.height = startRect.height - dy;
+  }
+
+  if (next.width < minSize) {
+    next.width = minSize;
+  }
+  if (next.height < minSize) {
+    next.height = minSize;
+  }
+
+  next.x = Math.max(0, Math.min(1 - next.width, next.x));
+  next.y = Math.max(0, Math.min(1 - next.height, next.y));
+  next.width = Math.min(next.width, 1 - next.x);
+  next.height = Math.min(next.height, 1 - next.y);
+
+  state.crop.rect = next;
+  renderCropBox();
+}
+
+function cropCurrentLabelImage() {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const { x, y, width, height } = state.crop.rect;
+      const sourceX = Math.round(image.naturalWidth * x);
+      const sourceY = Math.round(image.naturalHeight * y);
+      const sourceW = Math.round(image.naturalWidth * width);
+      const sourceH = Math.round(image.naturalHeight * height);
+      const maxSide = 768;
+      const scale = Math.min(1, maxSide / Math.max(sourceW, sourceH));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(sourceW * scale));
+      canvas.height = Math.max(1, Math.round(sourceH * scale));
+      const context = canvas.getContext("2d");
+      context.drawImage(image, sourceX, sourceY, sourceW, sourceH, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.78));
+    };
+    image.onerror = reject;
+    image.src = cropImage.src;
+  });
 }
 
 async function fetchServerStatus() {
