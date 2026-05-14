@@ -1,5 +1,7 @@
 # Meat Pick
 
+[English](README.md) | [한국어](README.ko.md)
+
 Meat Pick is an early MVP for a shopping assistant that helps users compare beef candidates by photo, preference, and price.
 
 The current prototype focuses on **beef for grilling**. Users can upload 2-5 candidate photos, add purchase information such as price and weight, and receive separate recommendations for taste and value.
@@ -111,4 +113,3 @@ prototype/.env.example
 ## Notes
 
 This prototype is not a food safety tool. It only provides photo-based shopping guidance. Users should still check expiration dates, packaging condition, smell, and store handling before purchase.
-
