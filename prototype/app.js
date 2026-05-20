@@ -4,6 +4,7 @@ const resetButton = document.querySelector("#resetButton");
 const candidateGrid = document.querySelector("#candidateGrid");
 const candidateCount = document.querySelector("#candidateCount");
 const inputHint = document.querySelector("#inputHint");
+const liveStatus = document.querySelector("#liveStatus");
 const resultSection = document.querySelector("#resultSection");
 const recommendationCard = document.querySelector("#recommendationCard");
 const rankingList = document.querySelector("#rankingList");
@@ -12,6 +13,8 @@ const cropModal = document.querySelector("#cropModal");
 const cropStage = document.querySelector("#cropStage");
 const cropImage = document.querySelector("#cropImage");
 const cropBox = document.querySelector("#cropBox");
+const cropEyebrow = document.querySelector("#cropEyebrow");
+const cropTitle = document.querySelector("#cropTitle");
 const cropCloseButton = document.querySelector("#cropCloseButton");
 const cropResetButton = document.querySelector("#cropResetButton");
 const cropReadButton = document.querySelector("#cropReadButton");
@@ -21,6 +24,8 @@ const state = {
   serverStatus: null,
   crop: {
     candidateId: "",
+    mode: "label",
+    sequence: false,
     rect: { x: 0.22, y: 0.22, width: 0.56, height: 0.28 },
     drag: null,
   },
@@ -71,7 +76,15 @@ candidateGrid.addEventListener("click", async (event) => {
   if (cropButton) {
     const candidate = state.candidates.find((item) => item.id === cropButton.dataset.candidateId);
     if (!candidate) return;
-    openCropModal(candidate);
+    openCropModal(candidate, "label");
+    return;
+  }
+
+  const productCropButton = event.target.closest("[data-crop-product]");
+  if (productCropButton) {
+    const candidate = state.candidates.find((item) => item.id === productCropButton.dataset.candidateId);
+    if (!candidate) return;
+    openCropModal(candidate, "product", false);
     return;
   }
 
@@ -88,19 +101,23 @@ cropResetButton.addEventListener("click", () => resetCropRect());
 cropReadButton.addEventListener("click", async () => {
   const candidate = state.candidates.find((item) => item.id === state.crop.candidateId);
   if (!candidate) return;
+
+  if (state.crop.mode === "product") {
+    confirmProductRect(candidate);
+    return;
+  }
+
   const imageDataUrl = await cropCurrentLabelImage();
   closeCropModal();
   await readLabelForCandidate(candidate, imageDataUrl);
 });
 
-cropStage.addEventListener("pointerdown", (event) => {
+cropBox.addEventListener("pointerdown", (event) => {
   if (cropModal.classList.contains("hidden")) return;
   const handle = event.target.dataset.cropHandle;
-  const isBox = event.target === cropBox;
-  if (!handle && !isBox) return;
 
   event.preventDefault();
-  cropStage.setPointerCapture(event.pointerId);
+  cropBox.setPointerCapture(event.pointerId);
   state.crop.drag = {
     mode: handle || "move",
     startX: event.clientX,
@@ -109,7 +126,7 @@ cropStage.addEventListener("pointerdown", (event) => {
   };
 });
 
-cropStage.addEventListener("pointermove", (event) => {
+cropBox.addEventListener("pointermove", (event) => {
   if (!state.crop.drag) return;
 
   const imageRect = cropImage.getBoundingClientRect();
@@ -118,7 +135,7 @@ cropStage.addEventListener("pointermove", (event) => {
   updateCropRectFromDrag(dx, dy);
 });
 
-cropStage.addEventListener("pointerup", () => {
+cropBox.addEventListener("pointerup", () => {
   state.crop.drag = null;
 });
 
@@ -127,6 +144,7 @@ imageInput.addEventListener("change", async (event) => {
   state.candidates = await Promise.all(files.map(createCandidate));
   renderCandidates();
   resultSection.classList.add("hidden");
+  openNextUnconfirmedProductCrop();
 });
 
 analyzeButton.addEventListener("click", async () => {
@@ -156,7 +174,8 @@ resetButton.addEventListener("click", () => {
 });
 
 async function createCandidate(file, index) {
-  const url = URL.createObjectURL(file);
+  const { url, orientation } = await createDisplayImageUrl(file);
+  const productRect = await detectProductRect(url);
   const metrics = await readImageMetrics(url);
 
   return {
@@ -164,6 +183,9 @@ async function createCandidate(file, index) {
     label: `${index + 1}번 후보`,
     fileName: file.name,
     url,
+    orientation,
+    productRect,
+    productConfirmed: false,
     metrics,
     purchase: {
       price: "",
@@ -185,11 +207,11 @@ async function createCandidate(file, index) {
 
 function renderCandidates() {
   candidateCount.textContent = `${state.candidates.length} / 5`;
-  analyzeButton.disabled = state.candidates.length < 2;
+  analyzeButton.disabled = !canAnalyze();
 
   if (state.candidates.length === 0) {
     candidateGrid.className = "candidate-grid empty-state";
-    candidateGrid.innerHTML = "<p>아직 후보 사진이 없습니다.</p>";
+    candidateGrid.innerHTML = "<p>사진을 올리면 이곳에서 후보별 제품 영역과 라벨 정보를 확인합니다.</p>";
     inputHint.textContent = "고기 전체가 보이고 비닐 반사가 적을수록 좋아요.";
     return;
   }
@@ -198,17 +220,24 @@ function renderCandidates() {
   inputHint.textContent =
     state.candidates.length < 2
       ? "비교하려면 후보 사진을 1장 더 올려주세요."
-      : "좋아요. 이제 분석하기를 눌러 후보를 비교할 수 있어요.";
+      : canAnalyze()
+        ? "좋아요. 이제 분석하기를 눌러 후보를 비교할 수 있어요."
+        : "분석 전에 각 후보의 제품 영역을 확인해 주세요.";
 
   candidateGrid.innerHTML = state.candidates
     .map((candidate) => {
       const { colorScore, fatScore, balanceScore } = candidate.metrics.scores;
       return `
         <article class="candidate-card">
-          <img src="${candidate.url}" alt="${candidate.label} 사진" />
+          <div class="candidate-image-wrap">
+            <img src="${candidate.url}" alt="${candidate.label} 사진" />
+            ${productSelectionOverlay(candidate)}
+          </div>
           <div class="candidate-body">
             <div class="candidate-title">
               <span>${candidate.label}</span>
+              <small>${candidate.productConfirmed ? "제품 영역 확인됨" : "제품 영역 확인 필요"}</small>
+              <button data-crop-product data-candidate-id="${candidate.id}" class="tiny-button" type="button">제품 영역 조정</button>
             </div>
             <ul class="metric-list">
               ${metricRow("색 안정감", colorScore)}
@@ -222,6 +251,20 @@ function renderCandidates() {
       `;
     })
     .join("");
+}
+
+function productSelectionOverlay(candidate) {
+  const rect = candidate.productRect || defaultProductRect();
+  const label = candidate.productConfirmed ? "분석 영역" : "확인 필요";
+  return `
+    <div class="product-selection-box" style="left:${rect.x * 100}%; top:${rect.y * 100}%; width:${rect.width * 100}%; height:${rect.height * 100}%;">
+      <span>${label}</span>
+    </div>
+  `;
+}
+
+function canAnalyze() {
+  return state.candidates.length >= 2 && state.candidates.every((candidate) => candidate.productConfirmed);
 }
 
 function purchaseInputs(candidate) {
@@ -279,6 +322,10 @@ function labelOcrControls(candidate) {
       </div>
     </div>
   `;
+}
+
+function defaultProductRect() {
+  return { x: 0.08, y: 0.08, width: 0.84, height: 0.84 };
 }
 
 function markNoLabel(candidate) {
@@ -387,11 +434,21 @@ function readableOcrError(payload) {
   return payload?.message || payload?.error || "라벨 읽기에 실패했습니다.";
 }
 
-function openCropModal(candidate) {
+function openCropModal(candidate, mode, sequence = false) {
   state.crop.candidateId = candidate.id;
+  state.crop.mode = mode;
+  state.crop.sequence = sequence;
+  state.crop.rect = mode === "product" ? { ...(candidate.productRect || defaultProductRect()) } : { x: 0.22, y: 0.22, width: 0.56, height: 0.28 };
+  cropEyebrow.textContent = mode === "product" ? "제품 영역 지정" : "라벨 영역 지정";
+  cropTitle.textContent =
+    mode === "product"
+      ? `${candidate.label}에서 분석할 고기 제품 영역을 맞춰주세요`
+      : "가격표가 보이는 영역을 맞춰주세요";
+  cropReadButton.textContent = mode === "product" ? "이 영역으로 지정" : "이 영역으로 라벨 읽기";
   cropImage.src = candidate.url;
   cropModal.classList.remove("hidden");
-  cropImage.onload = () => resetCropRect();
+  cropImage.onload = () => requestAnimationFrame(renderCropBox);
+  requestAnimationFrame(renderCropBox);
 }
 
 function closeCropModal() {
@@ -400,8 +457,25 @@ function closeCropModal() {
 }
 
 function resetCropRect() {
-  state.crop.rect = { x: 0.22, y: 0.22, width: 0.56, height: 0.28 };
+  state.crop.rect = state.crop.mode === "product" ? defaultProductRect() : { x: 0.22, y: 0.22, width: 0.56, height: 0.28 };
   renderCropBox();
+}
+
+function confirmProductRect(candidate) {
+  candidate.productRect = { ...state.crop.rect };
+  candidate.productConfirmed = true;
+  closeCropModal();
+  renderCandidates();
+
+  if (state.crop.sequence) {
+    openNextUnconfirmedProductCrop();
+  }
+}
+
+function openNextUnconfirmedProductCrop() {
+  const nextCandidate = state.candidates.find((candidate) => !candidate.productConfirmed);
+  if (!nextCandidate) return;
+  openCropModal(nextCandidate, "product", true);
 }
 
 function renderCropBox() {
@@ -459,10 +533,14 @@ function updateCropRectFromDrag(dx, dy) {
 }
 
 function cropCurrentLabelImage() {
+  return cropImageForApi(cropImage.src, state.crop.rect, 0.78);
+}
+
+function cropImageForApi(url, rect, quality = 0.72) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
-      const { x, y, width, height } = state.crop.rect;
+      const { x, y, width, height } = rect;
       const sourceX = Math.round(image.naturalWidth * x);
       const sourceY = Math.round(image.naturalHeight * y);
       const sourceW = Math.round(image.naturalWidth * width);
@@ -474,10 +552,10 @@ function cropCurrentLabelImage() {
       canvas.height = Math.max(1, Math.round(sourceH * scale));
       const context = canvas.getContext("2d");
       context.drawImage(image, sourceX, sourceY, sourceW, sourceH, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", 0.78));
+      resolve(canvas.toDataURL("image/jpeg", quality));
     };
     image.onerror = reject;
-    image.src = cropImage.src;
+    image.src = url;
   });
 }
 
@@ -499,10 +577,15 @@ function updateLiveHint() {
   inputHint.textContent = state.serverStatus.apiKeyConfigured
     ? `실제 LLM 분석이 켜져 있습니다. 분석 ${remaining}회, 라벨 읽기 ${ocrRemaining}회 남음.`
     : "API key가 없어 임시 분석만 사용할 수 있습니다.";
+  if (liveStatus) {
+    liveStatus.textContent = state.serverStatus.apiKeyConfigured
+      ? `LLM ON · 분석 ${remaining}회 · OCR ${ocrRemaining}회`
+      : "로컬 임시 분석 모드";
+  }
 }
 
 function setAnalyzing(isAnalyzing) {
-  analyzeButton.disabled = isAnalyzing || state.candidates.length < 2;
+  analyzeButton.disabled = isAnalyzing || !canAnalyze();
   analyzeButton.textContent = isAnalyzing ? "분석 중..." : "분석하기";
 }
 
@@ -581,7 +664,7 @@ async function analyzeCandidatesWithLlm(candidates, preference) {
     liveCandidates.map(async (candidate) => ({
       id: candidate.id,
       purchase: normalizePurchase(candidate.purchase),
-      imageDataUrl: await resizeImageForApi(candidate.url),
+      imageDataUrl: await cropImageForApi(candidate.url, candidate.productRect || defaultProductRect()),
     })),
   );
 
@@ -918,6 +1001,201 @@ function confidenceLabelFromLlm(value) {
   if (value === "high") return "높음";
   if (value === "low") return "낮음";
   return "보통";
+}
+
+async function createDisplayImageUrl(file) {
+  const orientation = await readExifOrientation(file);
+  const sourceUrl = URL.createObjectURL(file);
+
+  try {
+    if (orientation === 1) {
+      return { url: sourceUrl, orientation };
+    }
+
+    const correctedUrl = await drawOrientedImage(sourceUrl, orientation);
+    URL.revokeObjectURL(sourceUrl);
+    return { url: correctedUrl, orientation };
+  } catch {
+    return { url: sourceUrl, orientation: 1 };
+  }
+}
+
+function detectProductRect(url) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const size = 220;
+      const ratio = image.naturalWidth / image.naturalHeight || 1;
+      const canvas = document.createElement("canvas");
+      canvas.width = ratio >= 1 ? size : Math.round(size * ratio);
+      canvas.height = ratio >= 1 ? Math.round(size / ratio) : size;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const bounds = detectContentBounds(pixels, canvas.width, canvas.height);
+      resolve(bounds || defaultProductRect());
+    };
+    image.onerror = () => resolve(defaultProductRect());
+    image.src = url;
+  });
+}
+
+function detectContentBounds(pixels, width, height) {
+  let minX = width;
+  let minY = height;
+  let maxX = 0;
+  let maxY = 0;
+  let hits = 0;
+
+  for (let y = 0; y < height; y += 2) {
+    for (let x = 0; x < width; x += 2) {
+      const index = (y * width + x) * 4;
+      const r = pixels[index];
+      const g = pixels[index + 1];
+      const b = pixels[index + 2];
+      const brightness = (r + g + b) / 3;
+      const saturation = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+      const meatLike = r > 80 && r > g * 1.04 && r > b * 1.08;
+      const labelLike = brightness > 135 && saturation < 0.28;
+      const edgeLike = brightness < 80 || saturation > 0.22;
+
+      if (meatLike || labelLike || edgeLike) {
+        hits += 1;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  const hitRatio = hits / ((width * height) / 4);
+  if (hits < 40 || hitRatio < 0.02) return null;
+
+  const paddingX = width * 0.05;
+  const paddingY = height * 0.05;
+  const x = clampUnit((minX - paddingX) / width);
+  const y = clampUnit((minY - paddingY) / height);
+  const right = clampUnit((maxX + paddingX) / width);
+  const bottom = clampUnit((maxY + paddingY) / height);
+  const rect = {
+    x,
+    y,
+    width: Math.max(0.18, right - x),
+    height: Math.max(0.18, bottom - y),
+  };
+
+  if (rect.width > 0.96 && rect.height > 0.96) {
+    return defaultProductRect();
+  }
+
+  rect.width = Math.min(rect.width, 1 - rect.x);
+  rect.height = Math.min(rect.height, 1 - rect.y);
+  return rect;
+}
+
+function clampUnit(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function drawOrientedImage(url, orientation) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const swapsSize = [5, 6, 7, 8].includes(orientation);
+      const canvas = document.createElement("canvas");
+      canvas.width = swapsSize ? image.naturalHeight : image.naturalWidth;
+      canvas.height = swapsSize ? image.naturalWidth : image.naturalHeight;
+      const context = canvas.getContext("2d");
+      applyOrientationTransform(context, orientation, image.naturalWidth, image.naturalHeight);
+      context.drawImage(image, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    image.onerror = reject;
+    image.src = url;
+  });
+}
+
+function applyOrientationTransform(context, orientation, width, height) {
+  switch (orientation) {
+    case 2:
+      context.translate(width, 0);
+      context.scale(-1, 1);
+      break;
+    case 3:
+      context.translate(width, height);
+      context.rotate(Math.PI);
+      break;
+    case 4:
+      context.translate(0, height);
+      context.scale(1, -1);
+      break;
+    case 5:
+      context.rotate(0.5 * Math.PI);
+      context.scale(1, -1);
+      break;
+    case 6:
+      context.translate(height, 0);
+      context.rotate(0.5 * Math.PI);
+      break;
+    case 7:
+      context.translate(height, width);
+      context.rotate(0.5 * Math.PI);
+      context.scale(-1, 1);
+      break;
+    case 8:
+      context.translate(0, width);
+      context.rotate(-0.5 * Math.PI);
+      break;
+  }
+}
+
+async function readExifOrientation(file) {
+  const buffer = await file.slice(0, 64 * 1024).arrayBuffer();
+  const view = new DataView(buffer);
+
+  if (view.getUint16(0, false) !== 0xffd8) return 1;
+
+  let offset = 2;
+  while (offset < view.byteLength) {
+    const marker = view.getUint16(offset, false);
+    offset += 2;
+
+    if (marker === 0xffe1) {
+      const length = view.getUint16(offset, false);
+      const exifStart = offset + 2;
+      if (getAscii(view, exifStart, 4) !== "Exif") return 1;
+
+      const tiffStart = exifStart + 6;
+      const littleEndian = view.getUint16(tiffStart, false) === 0x4949;
+      const firstIfdOffset = view.getUint32(tiffStart + 4, littleEndian);
+      const ifdStart = tiffStart + firstIfdOffset;
+      const entries = view.getUint16(ifdStart, littleEndian);
+
+      for (let index = 0; index < entries; index += 1) {
+        const entryOffset = ifdStart + 2 + index * 12;
+        const tag = view.getUint16(entryOffset, littleEndian);
+        if (tag === 0x0112) {
+          return view.getUint16(entryOffset + 8, littleEndian) || 1;
+        }
+      }
+
+      return 1;
+    }
+
+    if ((marker & 0xff00) !== 0xff00) break;
+    offset += view.getUint16(offset, false);
+  }
+
+  return 1;
+}
+
+function getAscii(view, offset, length) {
+  let text = "";
+  for (let index = 0; index < length; index += 1) {
+    text += String.fromCharCode(view.getUint8(offset + index));
+  }
+  return text;
 }
 
 function resizeImageForApi(url) {
