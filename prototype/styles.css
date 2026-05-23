@@ -279,7 +279,7 @@ h2 {
 }
 
 .mode-grid {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .signal-panel {
@@ -339,6 +339,13 @@ h2 {
   color: var(--muted);
   background: var(--surface);
   font-weight: 900;
+}
+
+.mode-grid span {
+  min-height: 42px;
+  padding: 6px 8px;
+  font-size: 13px;
+  text-align: center;
 }
 
 .mode-grid label:hover span,
@@ -1714,6 +1721,8 @@ h2 {
 }
 
 @media (max-width: 520px) {
+  .mode-grid,
+  .preference-grid,
   .action-row,
   .label-actions,
   .purchase-fields {
