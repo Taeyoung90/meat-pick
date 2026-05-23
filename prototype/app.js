@@ -407,6 +407,7 @@ async function createCandidate(file, index) {
     labelFile: null,
     labelImageUrl: "",
     ocrStatus: "",
+    ocrResult: null,
   };
 }
 
@@ -530,6 +531,14 @@ function purchaseInputs(candidate) {
         <span>할인</span>
         <input data-candidate-id="${candidate.id}" data-candidate-field="discount" placeholder="예: 20%" value="${escapeHtml(candidate.purchase.discount)}" />
       </label>
+      <label>
+        <span>포장일</span>
+        <input data-candidate-id="${candidate.id}" data-candidate-field="packagedDate" placeholder="예: 2026-05-15" value="${escapeHtml(candidate.purchase.packagedDate)}" />
+      </label>
+      <label>
+        <span>소비기한/표시일</span>
+        <input data-candidate-id="${candidate.id}" data-candidate-field="expiryDate" placeholder="예: 2026-05-18" value="${escapeHtml(candidate.purchase.expiryDate)}" />
+      </label>
       <p id="${candidate.id}-price-per-100g" class="price-per-100g">${formatPricePer100g(candidate)}</p>
     </div>
   `;
@@ -547,15 +556,62 @@ function labelOcrControls(candidate) {
         <span id="${candidate.id}-ocr-status">${escapeHtml(candidate.ocrStatus || "라벨을 추가하면 자동 입력할 수 있어요.")}</span>
       </div>
       ${preview}
+      ${ocrInsightPanel(candidate)}
       <div class="label-actions">
         <button data-crop-label data-candidate-id="${candidate.id}" type="button">영역 지정</button>
         <label class="mini-file-button">
           라벨 사진 선택
-          <input data-label-input data-candidate-id="${candidate.id}" type="file" accept="image/*" />
+          <input data-label-input data-candidate-id="${candidate.id}" type="file" accept="image/*" capture="environment" />
         </label>
         <button data-read-label data-candidate-id="${candidate.id}" type="button" ${candidate.labelFile ? "" : "disabled"}>라벨 읽기</button>
         <button data-no-label data-candidate-id="${candidate.id}" class="ghost-button" type="button">가격표 없음</button>
       </div>
+    </div>
+  `;
+}
+
+function ocrInsightPanel(candidate) {
+  const result = candidate.ocrResult;
+
+  if (!candidate.purchase.hasLabel) {
+    return `
+      <div class="ocr-insight is-muted">
+        <strong>가격표 없음</strong>
+        <span>이 후보는 사진 정보 위주로만 비교합니다.</span>
+      </div>
+    `;
+  }
+
+  if (!result) return "";
+
+  const filledFields = [
+    ["가격", candidate.purchase.price],
+    ["중량", candidate.purchase.weightGram ? `${candidate.purchase.weightGram}g` : ""],
+    ["100g당", candidate.purchase.pricePer100g ? `${candidate.purchase.pricePer100g.toLocaleString("ko-KR")}원` : ""],
+    ["원산지", candidate.purchase.origin],
+    ["품목/부위", candidate.purchase.cut],
+    ["포장일", candidate.purchase.packagedDate],
+    ["소비기한", candidate.purchase.expiryDate],
+  ].filter(([, value]) => value);
+  const confidence = confidenceLabelFromLlm(result.confidence);
+  const warningList = result.warnings?.length
+    ? result.warnings.slice(0, 3)
+    : ["읽은 값은 실제 가격표와 한 번 더 대조해 주세요."];
+
+  return `
+    <div class="ocr-insight">
+      <div class="ocr-insight-head">
+        <strong>OCR 신뢰도 ${confidence}</strong>
+        <span>${filledFields.length}개 항목 반영</span>
+      </div>
+      ${
+        filledFields.length
+          ? `<div class="ocr-field-chips">${filledFields.map(([label, value]) => `<span>${escapeHtml(label)} · ${escapeHtml(String(value))}</span>`).join("")}</div>`
+          : `<p>확실하게 읽은 구매 정보가 없습니다.</p>`
+      }
+      <ul>
+        ${warningList.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}
+      </ul>
     </div>
   `;
 }
@@ -572,6 +628,7 @@ function markNoLabel(candidate) {
   }
   candidate.labelImageUrl = "";
   candidate.ocrStatus = "가격표 없음으로 표시했습니다. 가격 정보 없이 분석합니다.";
+  candidate.ocrResult = null;
   ["price", "weightGram", "grade", "origin", "cut", "expiryDate", "packagedDate", "discount"].forEach((field) => {
     candidate.purchase[field] = "";
   });
@@ -639,6 +696,10 @@ function applyOcrResult(candidate, payload) {
 
   updatePricePer100g(candidate);
   candidate.purchase.hasLabel = true;
+  candidate.ocrResult = {
+    confidence: payload.confidence,
+    warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
+  };
   candidate.ocrStatus = confidenceText(payload.confidence, payload.warnings);
 }
 

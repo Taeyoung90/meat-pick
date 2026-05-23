@@ -19,9 +19,11 @@ Users upload 2-5 candidate photos, confirm the product area to analyze, optional
   - Leafy greens
   - Tomatoes
 - Upload 2-5 candidate images
+- Hint mobile browsers to use the rear camera for capture
 - Auto-detect a product area, then let the user adjust it
 - Mark a candidate as having no visible price label
 - Crop and read price labels with multimodal OCR
+- Show OCR confidence, extracted fields, and warning notes
 - Add purchase information per candidate:
   - Price
   - Weight
