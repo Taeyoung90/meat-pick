@@ -143,6 +143,39 @@ const PRODUCT_MODES = {
       ["value", "가성비"],
     ],
   },
+  cucumber: {
+    label: "오이",
+    itemLabel: "야채",
+    heroEyebrow: "신선식품 선택 MVP",
+    heroTitle: "단단하고 싱싱해 보이는 오이를 비교해보세요",
+    heroCopy: "오이 후보 사진을 올리면 초록색 선명도, 표면 주름, 눌림/상처 신호를 기준으로 구매 후보를 정리합니다.",
+    description: "초록색 선명도, 표면 탄탄함, 주름/상처/무름 의심 신호를 우선으로 봅니다.",
+    scanStages: ["상품 영역 스캔 중", "초록색 선명도 확인 중", "표면 주름/상처 비교 중", "라벨 정보 반영 중", "최종 후보 정렬 중"],
+    dropCopy: "2~5장의 오이 후보 사진을 올려주세요.",
+    emptyText: "사진을 올리면 오이 후보별 상품 영역과 라벨 정보를 확인합니다.",
+    hint: "오이 전체 길이와 표면 돌기, 눌린 부분이 가려지지 않게 찍어주세요.",
+    candidateHeading: "업로드한 오이",
+    productCropTitle: "분석할 오이 상품 영역을 맞춰주세요",
+    resultDetailTitle: "오이 분석",
+    primaryRecommendationLabel: "신선도 우선",
+    primaryFallback: "사진상 색 선명도와 표면 안정감을 우선해 추천했습니다.",
+    guideSignals: ["초록색 선명도", "표면 탄탄함", "주름/상처", "가성비"],
+    metrics: ["색 선명도", "표면 안정감", "사진 품질"],
+    analysisLabels: {
+      primarySignal: "생기/탄탄함",
+      distributionSignal: "형태/균일도",
+      colorTone: "색상",
+      surfaceSignal: "표면/상처",
+      overall: "종합",
+    },
+    preferences: [
+      ["balanced", "균형"],
+      ["vivid", "색 선명도"],
+      ["firm", "탄탄함"],
+      ["clean", "상처 적음"],
+      ["value", "가성비"],
+    ],
+  },
 };
 
 const state = {
@@ -1164,6 +1197,15 @@ function scoreMetricsForMode(metrics, mode) {
     return { colorScore, fatScore, marblingScore, balanceScore, confidence };
   }
 
+  if (mode === "cucumber") {
+    const colorScore = clamp(36 + metrics.greenRatio * 190 + metrics.averageSaturation * 0.28 - metrics.brownRatio * 120 - metrics.darkRatio * 36);
+    const fatScore = clamp(54 + metrics.greenRatio * 105 - metrics.brownRatio * 145 - metrics.darkRatio * 55 - metrics.glareRatio * 36);
+    const marblingScore = clamp(78 - metrics.brownRatio * 175 - metrics.darkRatio * 72 - metrics.glareRatio * 44);
+    const balanceScore = clamp(84 - metrics.glareRatio * 130 - metrics.darkRatio * 105 - Math.abs(metrics.averageBrightness - 128) * 0.13);
+    const confidence = clamp(70 + metrics.greenRatio * 30 - metrics.glareRatio * 78 - metrics.darkRatio * 64);
+    return { colorScore, fatScore, marblingScore, balanceScore, confidence };
+  }
+
   if (mode === "tomato") {
     const colorScore = clamp(38 + metrics.redRatio * 185 + metrics.averageSaturation * 0.25 - metrics.brownRatio * 90 - metrics.darkRatio * 34);
     const fatScore = clamp(58 + metrics.redRatio * 92 - metrics.brownRatio * 140 - metrics.darkRatio * 58 - metrics.glareRatio * 38);
@@ -1196,7 +1238,7 @@ function buildReason(metrics, preference, mode = "beef-grill") {
   if (mode === "leafy-greens") {
     if (scores.fatScore >= 65) details.push("잎의 생기가 있어 보입니다");
     if (scores.marblingScore >= 65) details.push("상처나 변색 의심 신호가 적은 편입니다");
-  } else if (mode === "tomato") {
+  } else if (mode === "tomato" || mode === "cucumber") {
     if (scores.fatScore >= 65) details.push("표면이 비교적 안정적으로 보입니다");
     if (scores.marblingScore >= 65) details.push("상처나 무름 의심 신호가 적은 편입니다");
   } else {
@@ -1218,6 +1260,9 @@ function buildAnalysis(metrics, mode = "beef-grill") {
   }
   if (mode === "tomato") {
     return buildTomatoAnalysis(metrics);
+  }
+  if (mode === "cucumber") {
+    return buildCucumberAnalysis(metrics);
   }
 
   const { scores, redRatio, whiteRatio, glareRatio, darkRatio, averageBrightness, averageWarmth } = metrics;
@@ -1274,6 +1319,32 @@ function buildTomatoAnalysis(metrics) {
     surfaceSignal:
       brownRatio > 0.06 || darkRatio > 0.25 || glareRatio > 0.14
         ? "상처, 무름, 반사로 보일 수 있는 영역이 있어 표면을 직접 확인하는 편이 좋습니다."
+        : "사진상 큰 상처나 강한 반사 신호는 적어 보입니다.",
+    overall:
+      scores.confidence >= 68
+        ? "사진상 색과 표면 단서가 비교적 안정적이라 구매 후보로 검토할 만합니다."
+        : "사진 조건이 제한적이라 실제 단단함과 표면 상처를 함께 확인해 주세요.",
+  });
+}
+
+function buildCucumberAnalysis(metrics) {
+  const { scores, greenRatio, brownRatio, glareRatio, darkRatio } = metrics;
+  return normalizeAnalysisFields({
+    primarySignal:
+      greenRatio > 0.16 && scores.fatScore >= 64
+        ? "초록색 정보와 밝기가 비교적 안정적이라 사진상 생기와 탄탄함이 있어 보입니다."
+        : "색 정보나 밝기가 제한적이라 오이의 탄탄함 판단은 보통 수준입니다.",
+    distributionSignal:
+      scores.marblingScore >= 66
+        ? "전체 길이와 색 분포가 비교적 무난해 한쪽이 크게 무너진 신호는 적어 보입니다."
+        : "형태나 색 균일도 판단이 제한적이어서 휘어짐, 눌림, 마른 부분을 직접 확인해 주세요.",
+    colorTone:
+      scores.colorScore >= 68
+        ? "초록색이 비교적 선명하게 잡혀 사진상 오이 후보로 무난해 보입니다."
+        : "색이 탁하거나 조명 영향이 있어 실제 초록색 선명도를 확인하는 편이 좋습니다.",
+    surfaceSignal:
+      brownRatio > 0.06 || darkRatio > 0.24 || glareRatio > 0.14
+        ? "상처, 마른 부분, 반사로 보일 수 있는 영역이 있어 표면을 직접 확인해 주세요."
         : "사진상 큰 상처나 강한 반사 신호는 적어 보입니다.",
     overall:
       scores.confidence >= 68
@@ -1378,6 +1449,9 @@ function buildWarnings(metrics, mode = "beef-grill") {
   } else if (mode === "tomato") {
     if (metrics.redRatio < 0.1) warnings.push("토마토 영역이 작거나 붉은 색 정보가 부족할 수 있음");
     if (metrics.brownRatio > 0.07) warnings.push("상처 또는 무름처럼 보이는 영역이 있을 수 있음");
+  } else if (mode === "cucumber") {
+    if (metrics.greenRatio < 0.1) warnings.push("오이 영역이 작거나 초록색 정보가 부족할 수 있음");
+    if (metrics.brownRatio > 0.07) warnings.push("상처 또는 마른 부분처럼 보이는 영역이 있을 수 있음");
   } else if (metrics.redRatio < 0.1) {
     warnings.push("고기 영역이 작거나 색 정보가 부족할 수 있음");
   }
@@ -1526,6 +1600,14 @@ function analysisTags(candidate) {
     return uniqueStrings(tags.map((tag) => String(tag).trim()).filter(Boolean)).slice(0, 3);
   }
 
+  if (mode === "cucumber") {
+    if (candidate.metrics?.scores?.colorScore >= 65) tags.push("색 선명한 편");
+    if (candidate.metrics?.scores?.fatScore >= 65) tags.push("표면 안정적");
+    if (warnings.some((warning) => /마른|상처|어두|반사|작음/.test(warning))) tags.push("표면 확인 필요");
+    if (candidate.metrics?.scores?.balanceScore >= 70) tags.push("사진 품질 양호");
+    return uniqueStrings(tags.map((tag) => String(tag).trim()).filter(Boolean)).slice(0, 3);
+  }
+
   if (candidate.metrics?.scores?.fatScore >= 65 || /고르게|충분|지방감/.test(analysisValue(analysis, "distributionSignal") || analysisValue(analysis, "primarySignal"))) {
     tags.push("지방 고른 편");
   }
@@ -1571,6 +1653,9 @@ function buildQualityWarnings(metrics, productRect) {
   } else if (state.productMode === "tomato") {
     if (metrics.redRatio < 0.1) warnings.push("토마토 영역 작음");
     if (metrics.brownRatio > 0.07) warnings.push("상처/무름 의심");
+  } else if (state.productMode === "cucumber") {
+    if (metrics.greenRatio < 0.1) warnings.push("오이 영역 작음");
+    if (metrics.brownRatio > 0.07) warnings.push("상처/마름 의심");
   } else if (metrics.redRatio < 0.1) {
     warnings.push("고기 영역 작음");
   }
@@ -1911,7 +1996,7 @@ function detectContentBounds(pixels, width, height, mode = "beef-grill") {
       const labelLike = brightness > 135 && saturation < 0.28;
       const edgeLike = brightness < 80 || saturation > 0.22;
 
-      const itemLike = mode === "leafy-greens" ? leafyLike : mode === "tomato" ? tomatoLike : meatLike;
+      const itemLike = mode === "leafy-greens" || mode === "cucumber" ? leafyLike : mode === "tomato" ? tomatoLike : meatLike;
 
       if (itemLike || labelLike || edgeLike) {
         hits += 1;

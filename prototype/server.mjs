@@ -860,7 +860,7 @@ function preferenceLabel(preference) {
 }
 
 function normalizeProductMode(value) {
-  return ["beef-grill", "leafy-greens", "tomato"].includes(value) ? value : "beef-grill";
+  return ["beef-grill", "leafy-greens", "tomato", "cucumber"].includes(value) ? value : "beef-grill";
 }
 
 function productModeLabelFor(mode) {
@@ -869,6 +869,7 @@ function productModeLabelFor(mode) {
       "beef-grill": "소고기 구이용",
       "leafy-greens": "잎채소",
       tomato: "토마토",
+      cucumber: "오이",
     }[mode] || "신선식품"
   );
 }
@@ -911,6 +912,28 @@ function analysisGuidanceFor(mode) {
       fallback: {
         primarySignal: "사진 기준 색과 익은 정도 판단 정보가 부족합니다.",
         distributionSignal: "크기와 형태 균일도 판단 정보가 부족합니다.",
+        colorTone: "색상 판단 정보가 부족합니다.",
+        surfaceSignal: "표면/상처 판단 정보가 부족합니다.",
+        overall: "다른 후보와 함께 비교해 구매 후보를 판단하는 편이 좋습니다.",
+      },
+    };
+  }
+
+  if (mode === "cucumber") {
+    return {
+      criteria: ["초록색 선명도", "표면 주름/마른 부분/눌림 의심 신호", "길이와 형태 균형", "상처나 무름으로 보일 수 있는 부분", "가격표 정보가 있으면 가성비"],
+      tasteRule: "사진상 색 선명도, 표면 탄탄함, 상처가 적은 정도, 구매 후보 적합도를 우선하세요.",
+      tags: ["색 선명한 편", "표면 안정적", "표면 확인 필요"],
+      fields: {
+        primarySignal: "생기와 탄탄함 평가",
+        distributionSignal: "길이, 형태, 색상 균일도",
+        colorTone: "초록색 선명도와 탁한 부분 여부",
+        surfaceSignal: "주름, 상처, 마른 부분, 눌림, 포장 반사 등 사진상 주의 신호",
+        overall: "전반적인 구매 후보 적합도",
+      },
+      fallback: {
+        primarySignal: "사진 기준 생기와 탄탄함 판단 정보가 부족합니다.",
+        distributionSignal: "형태와 색상 균일도 판단 정보가 부족합니다.",
         colorTone: "색상 판단 정보가 부족합니다.",
         surfaceSignal: "표면/상처 판단 정보가 부족합니다.",
         overall: "다른 후보와 함께 비교해 구매 후보를 판단하는 편이 좋습니다.",

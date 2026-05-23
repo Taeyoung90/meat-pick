@@ -9,6 +9,7 @@ The prototype started with beef selection and now supports category-based compar
 - Beef for grilling
 - Leafy greens
 - Tomatoes
+- Cucumbers
 
 Users upload 2-5 candidate photos, confirm the product area to analyze, optionally read a price label with OCR, and receive photo-based recommendations for the best-looking candidate and value candidate.
 
@@ -18,6 +19,7 @@ Users upload 2-5 candidate photos, confirm the product area to analyze, optional
   - Beef for grilling
   - Leafy greens
   - Tomatoes
+  - Cucumbers
 - Upload 2-5 candidate images
 - Hint mobile browsers to use the rear camera for capture
 - Auto-detect a product area, then let the user adjust it

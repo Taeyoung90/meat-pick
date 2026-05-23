@@ -10,6 +10,7 @@ const requiredSnippets = [
   ['input type="radio" name="productMode" value="beef-grill"', html],
   ['input type="radio" name="productMode" value="leafy-greens"', html],
   ['input type="radio" name="productMode" value="tomato"', html],
+  ['input type="radio" name="productMode" value="cucumber"', html],
   ["PRODUCT_MODES", app],
   ["guideSignals", app],
   ['id="signalChips"', html],
@@ -32,11 +33,19 @@ const missing = requiredSnippets.filter(([snippet, source]) => !source.includes(
 
 const leafyBlock = extractObjectBlock(app, '"leafy-greens"');
 const tomatoBlock = extractObjectBlock(app, "tomato:");
+const cucumberBlock = extractObjectBlock(app, "cucumber:");
 const serverLeafyBlock = extractModeGuidanceBlock(server, 'mode === "leafy-greens"');
 const serverTomatoBlock = extractModeGuidanceBlock(server, 'mode === "tomato"');
+const serverCucumberBlock = extractModeGuidanceBlock(server, 'mode === "cucumber"');
 const produceForbidden = ["지방감", "마블링", "구이용", "고소함", "부드러움"];
 const produceLeaks = produceForbidden.filter(
-  (word) => leafyBlock.includes(word) || tomatoBlock.includes(word) || serverLeafyBlock.includes(word) || serverTomatoBlock.includes(word),
+  (word) =>
+    leafyBlock.includes(word) ||
+    tomatoBlock.includes(word) ||
+    cucumberBlock.includes(word) ||
+    serverLeafyBlock.includes(word) ||
+    serverTomatoBlock.includes(word) ||
+    serverCucumberBlock.includes(word),
 );
 const genericAnalysisFields = ["primarySignal", "distributionSignal", "colorTone", "surfaceSignal", "overall"];
 const missingGenericFields = genericAnalysisFields.filter((field) => !app.includes(field) || !server.includes(field));
@@ -63,7 +72,7 @@ console.log(
       ok: true,
       checked: requiredSnippets.length,
       genericFields: genericAnalysisFields,
-      modes: ["beef-grill", "leafy-greens", "tomato"],
+      modes: ["beef-grill", "leafy-greens", "tomato", "cucumber"],
     },
     null,
     2,
