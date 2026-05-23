@@ -282,6 +282,40 @@ h2 {
   grid-template-columns: 1fr;
 }
 
+.signal-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(47, 166, 111, 0.14);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(47, 166, 111, 0.08), rgba(255, 254, 250, 0.82));
+}
+
+.signal-panel strong {
+  color: var(--accent-dark);
+  font-size: 13px;
+}
+
+.signal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.signal-chips span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid rgba(47, 166, 111, 0.15);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .mode-grid label,
 .preference-grid label {
   display: block;

@@ -11,6 +11,8 @@ const requiredSnippets = [
   ['input type="radio" name="productMode" value="leafy-greens"', html],
   ['input type="radio" name="productMode" value="tomato"', html],
   ["PRODUCT_MODES", app],
+  ["guideSignals", app],
+  ['id="signalChips"', html],
   ["scoreMetricsForMode", app],
   ["normalizeAnalysisFields", app],
   ["primarySignal", app],
@@ -25,16 +27,23 @@ const missing = requiredSnippets.filter(([snippet, source]) => !source.includes(
 
 const leafyBlock = extractObjectBlock(app, '"leafy-greens"');
 const tomatoBlock = extractObjectBlock(app, "tomato:");
+const serverLeafyBlock = extractModeGuidanceBlock(server, 'mode === "leafy-greens"');
+const serverTomatoBlock = extractModeGuidanceBlock(server, 'mode === "tomato"');
 const produceForbidden = ["지방감", "마블링", "구이용", "고소함", "부드러움"];
-const produceLeaks = produceForbidden.filter((word) => leafyBlock.includes(word) || tomatoBlock.includes(word));
+const produceLeaks = produceForbidden.filter(
+  (word) => leafyBlock.includes(word) || tomatoBlock.includes(word) || serverLeafyBlock.includes(word) || serverTomatoBlock.includes(word),
+);
+const genericAnalysisFields = ["primarySignal", "distributionSignal", "colorTone", "surfaceSignal", "overall"];
+const missingGenericFields = genericAnalysisFields.filter((field) => !app.includes(field) || !server.includes(field));
 
-if (missing.length || produceLeaks.length) {
+if (missing.length || produceLeaks.length || missingGenericFields.length) {
   console.error(
     JSON.stringify(
       {
         ok: false,
         missing,
         produceLeaks,
+        missingGenericFields,
       },
       null,
       2,
@@ -48,6 +57,7 @@ console.log(
     {
       ok: true,
       checked: requiredSnippets.length,
+      genericFields: genericAnalysisFields,
       modes: ["beef-grill", "leafy-greens", "tomato"],
     },
     null,
@@ -71,4 +81,17 @@ function extractObjectBlock(source, marker) {
   }
 
   return "";
+}
+
+function extractModeGuidanceBlock(source, marker) {
+  const start = source.indexOf(marker);
+  if (start === -1) return "";
+
+  const end = source.indexOf("\n  if (mode ===", start + marker.length);
+  if (end === -1) {
+    const fallbackEnd = source.indexOf("\n  return {", start + marker.length);
+    return fallbackEnd === -1 ? source.slice(start) : source.slice(start, fallbackEnd);
+  }
+
+  return source.slice(start, end);
 }

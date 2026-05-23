@@ -12,6 +12,7 @@ const modeTitle = document.querySelector("#modeTitle");
 const modeDescription = document.querySelector("#modeDescription");
 const preferenceTitle = document.querySelector("#preferenceTitle");
 const preferenceGrid = document.querySelector("#preferenceGrid");
+const signalChips = document.querySelector("#signalChips");
 const dropCopy = document.querySelector("#dropCopy");
 const candidateHeading = document.querySelector("#candidateHeading");
 const historySection = document.querySelector("#historySection");
@@ -58,6 +59,7 @@ const PRODUCT_MODES = {
     resultDetailTitle: "고기 분석",
     primaryRecommendationLabel: "맛 우선",
     primaryFallback: "사진상 품질과 구이용 적합도를 우선해 추천했습니다.",
+    guideSignals: ["색 안정감", "지방 분포", "포장 반사", "가성비"],
     metrics: ["색 안정감", "지방감", "사진 품질"],
     analysisLabels: {
       primarySignal: "지방량",
@@ -90,6 +92,7 @@ const PRODUCT_MODES = {
     resultDetailTitle: "야채 분석",
     primaryRecommendationLabel: "신선도 우선",
     primaryFallback: "사진상 색과 생기, 상처가 적은 정도를 우선해 추천했습니다.",
+    guideSignals: ["색 선명도", "잎의 생기", "변색/시듦", "가성비"],
     metrics: ["색 선명도", "생기감", "사진 품질"],
     analysisLabels: {
       primarySignal: "생기",
@@ -122,6 +125,7 @@ const PRODUCT_MODES = {
     resultDetailTitle: "토마토 분석",
     primaryRecommendationLabel: "상태 우선",
     primaryFallback: "사진상 색 균일도와 표면 안정감을 우선해 추천했습니다.",
+    guideSignals: ["색 균일도", "표면 상처", "눌림/무름", "가성비"],
     metrics: ["색 균일도", "표면 안정감", "사진 품질"],
     analysisLabels: {
       primarySignal: "색/숙도",
@@ -364,6 +368,11 @@ function applyModeConfig() {
       `,
     )
     .join("");
+  if (signalChips) {
+    signalChips.innerHTML = (config.guideSignals || [])
+      .map((signal) => `<span>${escapeHtml(signal)}</span>`)
+      .join("");
+  }
 }
 
 async function createCandidate(file, index) {
