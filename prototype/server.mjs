@@ -860,7 +860,7 @@ function preferenceLabel(preference) {
 }
 
 function normalizeProductMode(value) {
-  return ["beef-grill", "leafy-greens", "tomato", "cucumber"].includes(value) ? value : "beef-grill";
+  return ["beef-grill", "leafy-greens", "tomato", "cucumber", "apple"].includes(value) ? value : "beef-grill";
 }
 
 function productModeLabelFor(mode) {
@@ -870,6 +870,7 @@ function productModeLabelFor(mode) {
       "leafy-greens": "잎채소",
       tomato: "토마토",
       cucumber: "오이",
+      apple: "사과",
     }[mode] || "신선식품"
   );
 }
@@ -933,6 +934,28 @@ function analysisGuidanceFor(mode) {
       },
       fallback: {
         primarySignal: "사진 기준 생기와 탄탄함 판단 정보가 부족합니다.",
+        distributionSignal: "형태와 색상 균일도 판단 정보가 부족합니다.",
+        colorTone: "색상 판단 정보가 부족합니다.",
+        surfaceSignal: "표면/상처 판단 정보가 부족합니다.",
+        overall: "다른 후보와 함께 비교해 구매 후보를 판단하는 편이 좋습니다.",
+      },
+    };
+  }
+
+  if (mode === "apple") {
+    return {
+      criteria: ["색 균일도와 익은 정도", "표면 멍/상처/눌림 의심 신호", "형태와 크기 균형", "윤기와 포장 반사로 인한 판단 제한", "가격표 정보가 있으면 가성비"],
+      tasteRule: "사진상 색 균일도, 표면 안정감, 멍이나 상처가 적은 정도, 구매 후보 적합도를 우선하세요.",
+      tags: ["색 균일한 편", "표면 안정적", "표면 확인 필요"],
+      fields: {
+        primarySignal: "색과 익은 정도 평가",
+        distributionSignal: "크기, 형태, 색상 균일도",
+        colorTone: "붉은색/노란색 선명도와 탁한 부분 여부",
+        surfaceSignal: "멍, 흠집, 눌림, 포장 반사 등 사진상 주의 신호",
+        overall: "전반적인 구매 후보 적합도",
+      },
+      fallback: {
+        primarySignal: "사진 기준 색과 익은 정도 판단 정보가 부족합니다.",
         distributionSignal: "형태와 색상 균일도 판단 정보가 부족합니다.",
         colorTone: "색상 판단 정보가 부족합니다.",
         surfaceSignal: "표면/상처 판단 정보가 부족합니다.",

@@ -28,11 +28,11 @@ const requiredSnippets = [
 ];
 
 const missing = requiredSnippets.filter(([snippet, source]) => !source.includes(snippet)).map(([snippet]) => snippet);
-const expectedModes = ["beef-grill", "leafy-greens", "tomato", "cucumber"];
+const expectedModes = ["beef-grill", "leafy-greens", "tomato", "cucumber", "apple"];
 const modeCoverage = expectedModes.map((mode) => ({
   mode,
   html: html.includes(`name="productMode" value="${mode}"`),
-  app: app.includes(`${mode === "tomato" || mode === "cucumber" ? `${mode}:` : `"${mode}"`}`),
+  app: app.includes(`${["tomato", "cucumber", "apple"].includes(mode) ? `${mode}:` : `"${mode}"`}`),
   server: server.includes(mode),
 }));
 const missingModes = modeCoverage.filter((item) => !item.html || !item.app || !item.server);
@@ -40,18 +40,22 @@ const missingModes = modeCoverage.filter((item) => !item.html || !item.app || !i
 const leafyBlock = extractObjectBlock(app, '"leafy-greens"');
 const tomatoBlock = extractObjectBlock(app, "tomato:");
 const cucumberBlock = extractObjectBlock(app, "cucumber:");
+const appleBlock = extractObjectBlock(app, "apple:");
 const serverLeafyBlock = extractModeGuidanceBlock(server, 'mode === "leafy-greens"');
 const serverTomatoBlock = extractModeGuidanceBlock(server, 'mode === "tomato"');
 const serverCucumberBlock = extractModeGuidanceBlock(server, 'mode === "cucumber"');
+const serverAppleBlock = extractModeGuidanceBlock(server, 'mode === "apple"');
 const produceForbidden = ["지방감", "마블링", "구이용", "고소함", "부드러움"];
 const produceLeaks = produceForbidden.filter(
   (word) =>
     leafyBlock.includes(word) ||
     tomatoBlock.includes(word) ||
     cucumberBlock.includes(word) ||
+    appleBlock.includes(word) ||
     serverLeafyBlock.includes(word) ||
     serverTomatoBlock.includes(word) ||
-    serverCucumberBlock.includes(word),
+    serverCucumberBlock.includes(word) ||
+    serverAppleBlock.includes(word),
 );
 const genericAnalysisFields = ["primarySignal", "distributionSignal", "colorTone", "surfaceSignal", "overall"];
 const missingGenericFields = genericAnalysisFields.filter((field) => !app.includes(field) || !server.includes(field));
