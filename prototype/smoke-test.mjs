@@ -7,10 +7,6 @@ const [html, app, server] = await Promise.all([
 ]);
 
 const requiredSnippets = [
-  ['input type="radio" name="productMode" value="beef-grill"', html],
-  ['input type="radio" name="productMode" value="leafy-greens"', html],
-  ['input type="radio" name="productMode" value="tomato"', html],
-  ['input type="radio" name="productMode" value="cucumber"', html],
   ["PRODUCT_MODES", app],
   ["guideSignals", app],
   ['id="signalChips"', html],
@@ -32,6 +28,14 @@ const requiredSnippets = [
 ];
 
 const missing = requiredSnippets.filter(([snippet, source]) => !source.includes(snippet)).map(([snippet]) => snippet);
+const expectedModes = ["beef-grill", "leafy-greens", "tomato", "cucumber"];
+const modeCoverage = expectedModes.map((mode) => ({
+  mode,
+  html: html.includes(`name="productMode" value="${mode}"`),
+  app: app.includes(`${mode === "tomato" || mode === "cucumber" ? `${mode}:` : `"${mode}"`}`),
+  server: server.includes(mode),
+}));
+const missingModes = modeCoverage.filter((item) => !item.html || !item.app || !item.server);
 
 const leafyBlock = extractObjectBlock(app, '"leafy-greens"');
 const tomatoBlock = extractObjectBlock(app, "tomato:");
@@ -52,12 +56,13 @@ const produceLeaks = produceForbidden.filter(
 const genericAnalysisFields = ["primarySignal", "distributionSignal", "colorTone", "surfaceSignal", "overall"];
 const missingGenericFields = genericAnalysisFields.filter((field) => !app.includes(field) || !server.includes(field));
 
-if (missing.length || produceLeaks.length || missingGenericFields.length) {
+if (missing.length || missingModes.length || produceLeaks.length || missingGenericFields.length) {
   console.error(
     JSON.stringify(
       {
         ok: false,
         missing,
+        missingModes,
         produceLeaks,
         missingGenericFields,
       },
@@ -73,8 +78,9 @@ console.log(
     {
       ok: true,
       checked: requiredSnippets.length,
+      modeCoverage,
       genericFields: genericAnalysisFields,
-      modes: ["beef-grill", "leafy-greens", "tomato", "cucumber"],
+      modes: expectedModes,
     },
     null,
     2,
