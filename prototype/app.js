@@ -415,6 +415,7 @@ demoButton?.addEventListener("click", async () => {
   const preference = document.querySelector("input[name='preference']:checked")?.value || "balanced";
   const result = analyzeCandidates(state.candidates, preference);
   result.source = "local";
+  result.isDemo = true;
   result.notices = ["샘플 분석은 화면 검증용 가상 이미지 기반 결과입니다.", "실제 구매 판단에는 직접 촬영한 후보 사진을 사용해 주세요."];
   renderResult(result);
 });
@@ -552,6 +553,7 @@ async function createDemoCandidates(mode) {
         orientation: 1,
         productRect: sample.productRect,
         productConfirmed: true,
+        isDemo: true,
         metrics,
         qualityWarnings: buildQualityWarnings(metrics, sample.productRect),
         purchase: {
@@ -778,7 +780,7 @@ function renderCandidates() {
           <div class="candidate-body">
             <div class="candidate-title">
               <span>${candidate.label}</span>
-              <small>${candidate.productConfirmed ? "제품 영역 확인됨" : "제품 영역 확인 필요"}</small>
+              <small>${candidate.isDemo ? "샘플 후보" : candidate.productConfirmed ? "제품 영역 확인됨" : "제품 영역 확인 필요"}</small>
               <button data-crop-product data-candidate-id="${candidate.id}" class="tiny-button" type="button">제품 영역 조정</button>
             </div>
             <ul class="metric-list">
@@ -1773,6 +1775,7 @@ function renderResult(result) {
         ${productSelectionOverlay(tasteWinner)}
       </div>
       <div class="best-pick-content">
+        ${result.isDemo ? `<span class="demo-result-banner">샘플 분석 · API 비용 없이 화면 확인 중</span>` : ""}
         <span class="recommendation-kicker">BEST PICK · 사진상 가장 좋아 보이는 후보</span>
         <h3>${tasteWinner.label} 추천</h3>
         <p>${result.tasteSummary || result.summary || `${tasteWinner.label}가 사진상 품질 기준으로 좋아 보입니다.`}</p>

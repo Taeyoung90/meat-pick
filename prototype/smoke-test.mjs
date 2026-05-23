@@ -24,6 +24,7 @@ const requiredSnippets = [
   ['id="demoButton"', html],
   ["createDemoCandidates", app],
   ["createDemoCandidateImage", app],
+  ["demo-result-banner", app],
   ["normalizeProductMode", server],
   ["analysisGuidanceFor", server],
   ["normalizeAnalysisResult", server],
