@@ -16,6 +16,8 @@ const requiredSnippets = [
   ['id="signalChips"', html],
   ['capture="environment"', html],
   ["scoreMetricsForMode", app],
+  ["resultComparisonPanel", app],
+  ["comparisonBar", app],
   ["normalizeAnalysisFields", app],
   ["primarySignal", app],
   ["restoreHistoryResult", app],

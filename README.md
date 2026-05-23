@@ -41,6 +41,7 @@ Users upload 2-5 candidate photos, confirm the product area to analyze, optional
   - BEST PICK card
   - Taste/freshness-first recommendation
   - Value recommendation
+  - Candidate comparison panel with category-specific signals
   - Candidate difference summary
   - Photo-quality warnings
   - Image analysis tags

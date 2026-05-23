@@ -1513,6 +1513,7 @@ function renderResult(result) {
         <small>OCR/가격표 정보는 실제 라벨과 한 번 더 확인해 주세요.</small>
       </div>
     </div>
+    ${resultComparisonPanel(ranked, config)}
     <div class="comparison-summary">
       <span class="recommendation-kicker">후보 간 핵심 차이</span>
       <p>${result.comparisonSummary || buildComparisonSummary(ranked)}</p>
@@ -1573,6 +1574,59 @@ function renderResult(result) {
   resultSection.classList.remove("hidden");
   resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
   saveAnalysisHistory(result);
+}
+
+function resultComparisonPanel(ranked, config) {
+  if (!ranked?.length) return "";
+  const [firstMetric, secondMetric, thirdMetric] = config.metrics;
+
+  return `
+    <div class="comparison-board" aria-label="후보 비교 요약">
+      <div class="comparison-board-head">
+        <span class="recommendation-kicker">COMPARE · 후보별 강점</span>
+        <strong>사진 기준 점수와 핵심 신호</strong>
+      </div>
+      <div class="comparison-board-list">
+        ${ranked
+          .map((candidate, index) => {
+            const scores = candidate.metrics?.scores || {};
+            const tags = analysisTags(candidate).slice(0, 3);
+            return `
+              <article class="comparison-row ${index === 0 ? "is-best" : ""}">
+                <div class="comparison-row-title">
+                  <span>${index + 1}</span>
+                  <div>
+                    <strong>${escapeHtml(candidate.label)}</strong>
+                    <small>${escapeHtml(purchaseSummary(candidate.purchase))}</small>
+                  </div>
+                </div>
+                <div class="comparison-bars">
+                  ${comparisonBar(firstMetric, scores.colorScore)}
+                  ${comparisonBar(secondMetric, scores.fatScore)}
+                  ${comparisonBar(thirdMetric, scores.balanceScore)}
+                </div>
+                <div class="comparison-tags">
+                  ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("") || "<span>사진 기준 비교</span>"}
+                </div>
+                <strong class="comparison-score">${Number(candidate.score || 0)}점</strong>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function comparisonBar(label, value = 0) {
+  const percent = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+  return `
+    <div class="comparison-bar">
+      <span>${escapeHtml(label)}</span>
+      <div><i style="width: ${percent}%"></i></div>
+      <strong>${percent}</strong>
+    </div>
+  `;
 }
 
 function analysisTags(candidate) {
