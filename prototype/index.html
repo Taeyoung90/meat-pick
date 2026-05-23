@@ -3,17 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>고기픽 MVP</title>
+    <title>Fresh Pick MVP</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <header class="top-bar" aria-label="서비스 상태">
         <div class="brand-mark">
-          <span class="brand-icon" aria-hidden="true">MP</span>
+          <span class="brand-icon" aria-hidden="true">FP</span>
           <div>
-            <strong>Meat Pick</strong>
-            <span>Premium Butcher Scanner</span>
+            <strong>Fresh Pick</strong>
+            <span>Market Freshness Scanner</span>
           </div>
         </div>
         <div class="top-status">
@@ -24,9 +24,9 @@
 
       <section class="hero">
         <div>
-          <p class="eyebrow">소고기 구이용 MVP</p>
-          <h1>지금 진열대에서 고를 고기를 비교해보세요</h1>
-          <p class="hero-copy">
+          <p id="heroEyebrow" class="eyebrow">신선식품 선택 MVP</p>
+          <h1 id="heroTitle">지금 진열대에서 고를 신선식품을 비교해보세요</h1>
+          <p id="heroCopy" class="hero-copy">
             후보 사진을 2장 이상 올리면 제품 영역을 먼저 확인하고, 가장 맛있어 보이는 후보와 판단 이유를 정리합니다.
           </p>
           <div class="hero-badges" aria-label="분석 흐름">
@@ -37,16 +37,34 @@
         </div>
         <div class="mode-panel" aria-label="현재 분석 모드">
           <span>현재 모드</span>
-          <strong>소고기 구이용</strong>
-          <p>구이용 식감, 지방 분포, 색 안정감을 우선으로 봅니다.</p>
+          <strong id="modeTitle">소고기 구이용</strong>
+          <p id="modeDescription">구이용 식감, 지방 분포, 색 안정감을 우선으로 봅니다.</p>
         </div>
       </section>
 
-      <section class="workspace" aria-label="고기 후보 비교 도구">
+      <section class="workspace" aria-label="신선식품 후보 비교 도구">
         <aside class="control-panel">
           <div class="panel-section">
-            <h2>취향 기준</h2>
-            <div class="preference-grid" role="radiogroup" aria-label="추천 취향 기준">
+            <h2>상품 종류</h2>
+            <div class="mode-grid" role="radiogroup" aria-label="분석할 상품 종류">
+              <label>
+                <input type="radio" name="productMode" value="beef-grill" checked />
+                <span>소고기 구이용</span>
+              </label>
+              <label>
+                <input type="radio" name="productMode" value="leafy-greens" />
+                <span>잎채소</span>
+              </label>
+              <label>
+                <input type="radio" name="productMode" value="tomato" />
+                <span>토마토</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <h2 id="preferenceTitle">취향 기준</h2>
+            <div id="preferenceGrid" class="preference-grid" role="radiogroup" aria-label="추천 취향 기준">
               <label>
                 <input type="radio" name="preference" value="balanced" checked />
                 <span>균형</span>
@@ -75,9 +93,9 @@
             <label class="drop-zone" for="imageInput">
               <input id="imageInput" type="file" accept="image/*" multiple />
               <span class="drop-title">사진 선택</span>
-              <span class="drop-copy">2~5장의 소고기 후보 사진을 올려주세요.</span>
+              <span id="dropCopy" class="drop-copy">2~5장의 후보 사진을 올려주세요.</span>
             </label>
-            <p id="inputHint" class="hint">고기 전체가 보이고 비닐 반사가 적을수록 좋아요.</p>
+            <p id="inputHint" class="hint">상품 전체가 보이고 조명 반사가 적을수록 좋아요.</p>
             <ul class="shooting-tips" aria-label="촬영 팁">
               <li>진열대 조명 반사를 피해서 촬영</li>
               <li>한 후보가 사진 안에 크게 보이게 촬영</li>
@@ -95,7 +113,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">후보 목록</p>
-              <h2>업로드한 고기</h2>
+              <h2 id="candidateHeading">업로드한 후보</h2>
             </div>
             <span id="candidateCount" class="count-pill">0 / 5</span>
           </div>
@@ -103,6 +121,18 @@
             <p>사진을 올리면 이곳에서 후보별 제품 영역과 라벨 정보를 확인합니다.</p>
           </div>
         </section>
+      </section>
+
+      <section id="historySection" class="history-section hidden" aria-label="최근 분석 기록">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">최근 기록</p>
+            <h2>분석 히스토리</h2>
+          </div>
+          <button id="clearHistoryButton" class="tiny-button" type="button">기록 지우기</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+        <p class="history-note">최근 분석은 이 브라우저에만 저장됩니다. 원본 이미지는 저장하지 않고 작은 썸네일만 보관합니다.</p>
       </section>
 
       <section id="resultSection" class="result-section hidden" aria-live="polite">

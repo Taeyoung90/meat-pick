@@ -5,6 +5,18 @@ const candidateGrid = document.querySelector("#candidateGrid");
 const candidateCount = document.querySelector("#candidateCount");
 const inputHint = document.querySelector("#inputHint");
 const liveStatus = document.querySelector("#liveStatus");
+const heroEyebrow = document.querySelector("#heroEyebrow");
+const heroTitle = document.querySelector("#heroTitle");
+const heroCopy = document.querySelector("#heroCopy");
+const modeTitle = document.querySelector("#modeTitle");
+const modeDescription = document.querySelector("#modeDescription");
+const preferenceTitle = document.querySelector("#preferenceTitle");
+const preferenceGrid = document.querySelector("#preferenceGrid");
+const dropCopy = document.querySelector("#dropCopy");
+const candidateHeading = document.querySelector("#candidateHeading");
+const historySection = document.querySelector("#historySection");
+const historyList = document.querySelector("#historyList");
+const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const resultSection = document.querySelector("#resultSection");
 const recommendationCard = document.querySelector("#recommendationCard");
 const rankingList = document.querySelector("#rankingList");
@@ -19,9 +31,122 @@ const cropCloseButton = document.querySelector("#cropCloseButton");
 const cropResetButton = document.querySelector("#cropResetButton");
 const cropReadButton = document.querySelector("#cropReadButton");
 
+const SCAN_STAGES = [
+  "제품 영역 스캔 중",
+  "색상과 표면 단서 확인 중",
+  "사진 품질 비교 중",
+  "라벨 정보 반영 중",
+  "최종 후보 정렬 중",
+];
+const HISTORY_KEY = "fresh-pick-analysis-history";
+const LEGACY_HISTORY_KEY = "meat-pick-analysis-history";
+const MAX_HISTORY_ITEMS = 8;
+const PRODUCT_MODES = {
+  "beef-grill": {
+    label: "소고기 구이용",
+    itemLabel: "고기",
+    heroEyebrow: "신선식품 선택 MVP",
+    heroTitle: "지금 진열대에서 고를 신선식품을 비교해보세요",
+    heroCopy: "고기나 야채 후보 사진을 2장 이상 올리면 상품 영역을 먼저 확인하고, 사진상 가장 좋아 보이는 후보와 이유를 정리합니다.",
+    description: "구이용 식감, 지방 분포, 색 안정감, 포장 반사를 우선으로 봅니다.",
+    scanStages: ["상품 영역 스캔 중", "지방 분포 확인 중", "색상 안정성 비교 중", "라벨 정보 반영 중", "최종 후보 정렬 중"],
+    dropCopy: "2~5장의 소고기 후보 사진을 올려주세요.",
+    emptyText: "사진을 올리면 후보별 상품 영역과 라벨 정보를 확인합니다.",
+    hint: "고기 전체가 보이고 비닐 반사가 적을수록 좋아요.",
+    candidateHeading: "업로드한 고기",
+    productCropTitle: "분석할 고기 상품 영역을 맞춰주세요",
+    resultDetailTitle: "고기 분석",
+    primaryRecommendationLabel: "맛 우선",
+    primaryFallback: "사진상 품질과 구이용 적합도를 우선해 추천했습니다.",
+    metrics: ["색 안정감", "지방감", "사진 품질"],
+    analysisLabels: {
+      primarySignal: "지방량",
+      distributionSignal: "지방 분포",
+      colorTone: "색상",
+      surfaceSignal: "표면/사진",
+      overall: "종합",
+    },
+    preferences: [
+      ["balanced", "균형"],
+      ["lean", "담백함"],
+      ["rich", "고소함"],
+      ["tender", "부드러움"],
+      ["value", "가성비"],
+    ],
+  },
+  "leafy-greens": {
+    label: "잎채소",
+    itemLabel: "야채",
+    heroEyebrow: "신선식품 선택 MVP",
+    heroTitle: "싱싱해 보이는 야채를 사진으로 비교해보세요",
+    heroCopy: "잎채소 후보 사진을 올리면 색 선명도, 시든 부분, 상처/변색 신호를 기준으로 구매 후보를 정리합니다.",
+    description: "잎의 생기, 색상 균일도, 시든 정도, 상처/변색을 우선으로 봅니다.",
+    scanStages: ["상품 영역 스캔 중", "잎의 생기 확인 중", "상처/변색 신호 비교 중", "라벨 정보 반영 중", "최종 후보 정렬 중"],
+    dropCopy: "2~5장의 잎채소 후보 사진을 올려주세요.",
+    emptyText: "사진을 올리면 잎채소 후보별 상품 영역과 라벨 정보를 확인합니다.",
+    hint: "잎 전체가 보이고 누렇게 뜬 부분이나 물러 보이는 부분이 잘 보이면 좋아요.",
+    candidateHeading: "업로드한 잎채소",
+    productCropTitle: "분석할 야채 상품 영역을 맞춰주세요",
+    resultDetailTitle: "야채 분석",
+    primaryRecommendationLabel: "신선도 우선",
+    primaryFallback: "사진상 색과 생기, 상처가 적은 정도를 우선해 추천했습니다.",
+    metrics: ["색 선명도", "생기감", "사진 품질"],
+    analysisLabels: {
+      primarySignal: "생기",
+      distributionSignal: "형태/균일도",
+      colorTone: "색상",
+      surfaceSignal: "상처/시듦",
+      overall: "종합",
+    },
+    preferences: [
+      ["balanced", "균형"],
+      ["vivid", "색 선명도"],
+      ["crisp", "싱싱함"],
+      ["clean", "상처 적음"],
+      ["value", "가성비"],
+    ],
+  },
+  tomato: {
+    label: "토마토",
+    itemLabel: "야채",
+    heroEyebrow: "신선식품 선택 MVP",
+    heroTitle: "색과 표면이 좋아 보이는 토마토를 비교해보세요",
+    heroCopy: "토마토 후보 사진을 올리면 색 균일도, 표면 상처, 무름 의심 신호를 기준으로 구매 후보를 정리합니다.",
+    description: "붉은 색 균일도, 표면 탄탄함, 상처/무름 신호, 크기 균형을 우선으로 봅니다.",
+    scanStages: ["상품 영역 스캔 중", "색 균일도 확인 중", "표면 상처 신호 비교 중", "라벨 정보 반영 중", "최종 후보 정렬 중"],
+    dropCopy: "2~5장의 토마토 후보 사진을 올려주세요.",
+    emptyText: "사진을 올리면 토마토 후보별 상품 영역과 라벨 정보를 확인합니다.",
+    hint: "토마토 표면 전체가 보이고 눌림이나 상처 부분이 가려지지 않게 찍어주세요.",
+    candidateHeading: "업로드한 토마토",
+    productCropTitle: "분석할 토마토 상품 영역을 맞춰주세요",
+    resultDetailTitle: "토마토 분석",
+    primaryRecommendationLabel: "상태 우선",
+    primaryFallback: "사진상 색 균일도와 표면 안정감을 우선해 추천했습니다.",
+    metrics: ["색 균일도", "표면 안정감", "사진 품질"],
+    analysisLabels: {
+      primarySignal: "색/숙도",
+      distributionSignal: "크기/형태",
+      colorTone: "색상",
+      surfaceSignal: "표면/상처",
+      overall: "종합",
+    },
+    preferences: [
+      ["balanced", "균형"],
+      ["vivid", "색 균일도"],
+      ["firm", "탄탄함"],
+      ["clean", "상처 적음"],
+      ["value", "가성비"],
+    ],
+  },
+};
+
 const state = {
+  productMode: "beef-grill",
   candidates: [],
   serverStatus: null,
+  isAnalyzing: false,
+  scanStageIndex: 0,
+  scanTimer: null,
   crop: {
     candidateId: "",
     mode: "label",
@@ -32,6 +157,36 @@ const state = {
 };
 
 fetchServerStatus();
+applyModeConfig();
+renderHistory();
+
+document.querySelectorAll("input[name='productMode']").forEach((input) => {
+  input.addEventListener("change", () => {
+    if (!input.checked) return;
+    changeProductMode(input.value);
+  });
+});
+
+clearHistoryButton?.addEventListener("click", () => {
+  localStorage.removeItem(HISTORY_KEY);
+  localStorage.removeItem(LEGACY_HISTORY_KEY);
+  renderHistory();
+});
+
+historyList?.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("[data-delete-history]");
+  if (deleteButton) {
+    const history = readHistory().filter((item) => item.id !== deleteButton.dataset.deleteHistory);
+    writeHistory(history);
+    renderHistory();
+    return;
+  }
+
+  const restoreButton = event.target.closest("[data-restore-history]");
+  if (restoreButton) {
+    restoreHistoryResult(restoreButton.dataset.restoreHistory);
+  }
+});
 
 candidateGrid.addEventListener("input", (event) => {
   const input = event.target.closest("[data-candidate-field]");
@@ -173,20 +328,61 @@ resetButton.addEventListener("click", () => {
   resultSection.classList.add("hidden");
 });
 
+function currentMode() {
+  return PRODUCT_MODES[state.productMode] || PRODUCT_MODES["beef-grill"];
+}
+
+function changeProductMode(mode) {
+  if (!PRODUCT_MODES[mode] || state.productMode === mode) return;
+  state.productMode = mode;
+  state.candidates.forEach((candidate) => URL.revokeObjectURL(candidate.url));
+  state.candidates = [];
+  imageInput.value = "";
+  resultSection.classList.add("hidden");
+  applyModeConfig();
+  renderCandidates();
+}
+
+function applyModeConfig() {
+  const config = currentMode();
+  heroEyebrow.textContent = config.heroEyebrow;
+  heroTitle.textContent = config.heroTitle;
+  heroCopy.textContent = config.heroCopy;
+  modeTitle.textContent = config.label;
+  modeDescription.textContent = config.description;
+  dropCopy.textContent = config.dropCopy;
+  inputHint.textContent = config.hint;
+  candidateHeading.textContent = config.candidateHeading;
+  preferenceTitle.textContent = `${config.label} 기준`;
+  preferenceGrid.innerHTML = config.preferences
+    .map(
+      ([value, label], index) => `
+        <label>
+          <input type="radio" name="preference" value="${value}" ${index === 0 ? "checked" : ""} />
+          <span>${label}</span>
+        </label>
+      `,
+    )
+    .join("");
+}
+
 async function createCandidate(file, index) {
   const { url, orientation } = await createDisplayImageUrl(file);
-  const productRect = await detectProductRect(url);
+  const productRect = await detectProductRect(url, state.productMode);
   const metrics = await readImageMetrics(url);
+  metrics.scores = scoreMetricsForMode(metrics, state.productMode);
 
   return {
     id: `candidate-${index + 1}`,
     label: `${index + 1}번 후보`,
     fileName: file.name,
+    productMode: state.productMode,
     url,
     orientation,
     productRect,
     productConfirmed: false,
     metrics,
+    qualityWarnings: buildQualityWarnings(metrics, productRect),
     purchase: {
       price: "",
       weightGram: "",
@@ -206,19 +402,22 @@ async function createCandidate(file, index) {
 }
 
 function renderCandidates() {
+  const config = currentMode();
   candidateCount.textContent = `${state.candidates.length} / 5`;
-  analyzeButton.disabled = !canAnalyze();
+  analyzeButton.disabled = state.isAnalyzing || !canAnalyze();
 
   if (state.candidates.length === 0) {
     candidateGrid.className = "candidate-grid empty-state";
-    candidateGrid.innerHTML = "<p>사진을 올리면 이곳에서 후보별 제품 영역과 라벨 정보를 확인합니다.</p>";
-    inputHint.textContent = "고기 전체가 보이고 비닐 반사가 적을수록 좋아요.";
+    candidateGrid.innerHTML = `<p>${config.emptyText}</p>`;
+    inputHint.textContent = config.hint;
     return;
   }
 
   candidateGrid.className = "candidate-grid";
-  inputHint.textContent =
-    state.candidates.length < 2
+  const scanStages = config.scanStages || SCAN_STAGES;
+  inputHint.textContent = state.isAnalyzing
+    ? scanStages[state.scanStageIndex % scanStages.length]
+    : state.candidates.length < 2
       ? "비교하려면 후보 사진을 1장 더 올려주세요."
       : canAnalyze()
         ? "좋아요. 이제 분석하기를 눌러 후보를 비교할 수 있어요."
@@ -227,11 +426,13 @@ function renderCandidates() {
   candidateGrid.innerHTML = state.candidates
     .map((candidate) => {
       const { colorScore, fatScore, balanceScore } = candidate.metrics.scores;
+      const [firstMetric, secondMetric, thirdMetric] = config.metrics;
       return `
-        <article class="candidate-card">
+        <article class="candidate-card ${state.isAnalyzing ? "is-scanning" : ""}">
           <div class="candidate-image-wrap">
             <img src="${candidate.url}" alt="${candidate.label} 사진" />
             ${productSelectionOverlay(candidate)}
+            ${scanOverlay(candidate)}
           </div>
           <div class="candidate-body">
             <div class="candidate-title">
@@ -240,10 +441,11 @@ function renderCandidates() {
               <button data-crop-product data-candidate-id="${candidate.id}" class="tiny-button" type="button">제품 영역 조정</button>
             </div>
             <ul class="metric-list">
-              ${metricRow("색 안정감", colorScore)}
-              ${metricRow("지방감", fatScore)}
-              ${metricRow("사진 품질", balanceScore)}
+              ${metricRow(firstMetric, colorScore)}
+              ${metricRow(secondMetric, fatScore)}
+              ${metricRow(thirdMetric, balanceScore)}
             </ul>
+            ${qualityWarningBox(candidate)}
             ${purchaseInputs(candidate)}
             ${labelOcrControls(candidate)}
           </div>
@@ -251,6 +453,31 @@ function renderCandidates() {
       `;
     })
     .join("");
+}
+
+function qualityWarningBox(candidate) {
+  if (!candidate.qualityWarnings?.length) return "";
+  return `
+    <div class="quality-warning-box">
+      <strong>사진 품질 확인</strong>
+      <span>${candidate.qualityWarnings.map(escapeHtml).join(" · ")} 경고가 있어 결과 신뢰도가 낮아질 수 있어요.</span>
+    </div>
+  `;
+}
+
+function scanOverlay(candidate) {
+  if (!state.isAnalyzing) return "";
+  const stages = currentMode().scanStages || SCAN_STAGES;
+  const stage = stages[state.scanStageIndex % stages.length];
+  return `
+    <div class="scan-overlay" aria-label="${candidate.label} 분석 중">
+      <div class="scan-line"></div>
+      <div class="scan-status">
+        <span class="scan-pulse" aria-hidden="true"></span>
+        <strong>${stage}</strong>
+      </div>
+    </div>
+  `;
 }
 
 function productSelectionOverlay(candidate) {
@@ -435,6 +662,7 @@ function readableOcrError(payload) {
 }
 
 function openCropModal(candidate, mode, sequence = false) {
+  const config = currentMode();
   state.crop.candidateId = candidate.id;
   state.crop.mode = mode;
   state.crop.sequence = sequence;
@@ -442,7 +670,7 @@ function openCropModal(candidate, mode, sequence = false) {
   cropEyebrow.textContent = mode === "product" ? "제품 영역 지정" : "라벨 영역 지정";
   cropTitle.textContent =
     mode === "product"
-      ? `${candidate.label}에서 분석할 고기 제품 영역을 맞춰주세요`
+      ? `${candidate.label}에서 ${config.productCropTitle}`
       : "가격표가 보이는 영역을 맞춰주세요";
   cropReadButton.textContent = mode === "product" ? "이 영역으로 지정" : "이 영역으로 라벨 읽기";
   cropImage.src = candidate.url;
@@ -585,8 +813,37 @@ function updateLiveHint() {
 }
 
 function setAnalyzing(isAnalyzing) {
+  state.isAnalyzing = isAnalyzing;
   analyzeButton.disabled = isAnalyzing || !canAnalyze();
+  resetButton.disabled = isAnalyzing;
+  imageInput.disabled = isAnalyzing;
   analyzeButton.textContent = isAnalyzing ? "분석 중..." : "분석하기";
+
+  if (isAnalyzing) {
+    startScanExperience();
+  } else {
+    stopScanExperience();
+  }
+  renderCandidates();
+}
+
+function startScanExperience() {
+  const stages = currentMode().scanStages || SCAN_STAGES;
+  stopScanExperience();
+  state.scanStageIndex = 0;
+  inputHint.textContent = stages[0];
+  state.scanTimer = window.setInterval(() => {
+    state.scanStageIndex = (state.scanStageIndex + 1) % stages.length;
+    inputHint.textContent = stages[state.scanStageIndex];
+    renderCandidates();
+  }, 1400);
+}
+
+function stopScanExperience() {
+  if (state.scanTimer) {
+    window.clearInterval(state.scanTimer);
+    state.scanTimer = null;
+  }
 }
 
 function metricRow(label, value) {
@@ -607,9 +864,9 @@ function analyzeCandidates(candidates, preference) {
       return {
         ...candidate,
         score,
-        reason: buildReason(candidate.metrics, preference),
-        analysis: buildAnalysis(candidate.metrics),
-        warnings: buildWarnings(candidate.metrics),
+        reason: buildReason(candidate.metrics, preference, candidate.productMode || state.productMode),
+        analysis: buildAnalysis(candidate.metrics, candidate.productMode || state.productMode),
+        warnings: buildCandidateWarnings(candidate),
       };
     })
     .sort((a, b) => b.score - a.score);
@@ -618,13 +875,15 @@ function analyzeCandidates(candidates, preference) {
     ranked.reduce((sum, candidate) => sum + candidate.metrics.scores.confidence, 0) / ranked.length;
 
   return {
+    productMode: state.productMode,
     preference,
     ranked,
     winner: ranked[0],
     tasteWinner: ranked[0],
     valueWinner: chooseLocalValueWinner(ranked),
-    tasteSummary: `${ranked[0].label}가 사진상 품질 기준으로 가장 좋아 보입니다.`,
+    tasteSummary: `${ranked[0].label}가 ${currentMode().label} 기준에서 사진상 가장 좋아 보입니다.`,
     valueSummary: buildLocalValueSummary(chooseLocalValueWinner(ranked)),
+    comparisonSummary: buildComparisonSummary(ranked),
     confidenceLabel: confidenceLabel(averageConfidence),
     source: "local",
   };
@@ -664,6 +923,7 @@ async function analyzeCandidatesWithLlm(candidates, preference) {
     liveCandidates.map(async (candidate) => ({
       id: candidate.id,
       purchase: normalizePurchase(candidate.purchase),
+      qualityWarnings: candidate.qualityWarnings || [],
       imageDataUrl: await cropImageForApi(candidate.url, candidate.productRect || defaultProductRect()),
     })),
   );
@@ -672,6 +932,8 @@ async function analyzeCandidatesWithLlm(candidates, preference) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      productMode: state.productMode,
+      productModeLabel: currentMode().label,
       preference,
       candidates: payloadCandidates,
     }),
@@ -706,7 +968,11 @@ function normalizeLlmResult(payload, candidates, preference) {
         score: item.score,
         reason: item.reason,
         analysis: item.analysis,
-        warnings: item.warnings || [],
+        warnings: uniqueStrings([...(item.warnings || []), ...(candidate.qualityWarnings || [])]).slice(0, 5),
+        strengths: item.strengths || [],
+        weaknesses: item.weaknesses || [],
+        tags: item.tags || [],
+        bestUse: item.bestUse || "",
       };
     })
     .filter((candidate) => candidate.id);
@@ -716,6 +982,7 @@ function normalizeLlmResult(payload, candidates, preference) {
   const valueWinner = ranked.find((candidate) => candidate.id === payload.valueRecommendationId) || ranked[0];
 
   return {
+    productMode: payload.productMode || state.productMode,
     preference,
     ranked,
     winner,
@@ -726,6 +993,7 @@ function normalizeLlmResult(payload, candidates, preference) {
     valueSummary: payload.valueSummary,
     confidenceLabel: confidenceLabelFromLlm(payload.confidence),
     notices: payload.notices || [],
+    comparisonSummary: payload.comparisonSummary || buildComparisonSummary(ranked),
     source: "openai",
     model: payload.model,
   };
@@ -754,8 +1022,12 @@ function scoreCandidate(scores, preference) {
     lean: { colorScore: 0.3, fatScore: 0.12, marblingScore: 0.16, balanceScore: 0.42 },
     rich: { colorScore: 0.24, fatScore: 0.34, marblingScore: 0.28, balanceScore: 0.14 },
     tender: { colorScore: 0.22, fatScore: 0.25, marblingScore: 0.36, balanceScore: 0.17 },
+    vivid: { colorScore: 0.44, fatScore: 0.18, marblingScore: 0.16, balanceScore: 0.22 },
+    crisp: { colorScore: 0.25, fatScore: 0.4, marblingScore: 0.16, balanceScore: 0.19 },
+    firm: { colorScore: 0.28, fatScore: 0.32, marblingScore: 0.2, balanceScore: 0.2 },
+    clean: { colorScore: 0.22, fatScore: 0.2, marblingScore: 0.18, balanceScore: 0.4 },
     value: { colorScore: 0.26, fatScore: 0.18, marblingScore: 0.2, balanceScore: 0.36 },
-  }[preference];
+  }[preference] || { colorScore: 0.28, fatScore: 0.24, marblingScore: 0.22, balanceScore: 0.26 };
 
   const raw =
     scores.colorScore * weights.colorScore +
@@ -766,21 +1038,55 @@ function scoreCandidate(scores, preference) {
   return Math.max(1, Math.min(99, Math.round(raw)));
 }
 
-function buildReason(metrics, preference) {
+function scoreMetricsForMode(metrics, mode) {
+  if (mode === "leafy-greens") {
+    const colorScore = clamp(34 + metrics.greenRatio * 210 + metrics.averageSaturation * 0.32 - metrics.brownRatio * 120 - metrics.darkRatio * 42);
+    const fatScore = clamp(48 + metrics.greenRatio * 120 - metrics.brownRatio * 170 - metrics.darkRatio * 64 - metrics.glareRatio * 45);
+    const marblingScore = clamp(74 - metrics.brownRatio * 190 - metrics.darkRatio * 85 - metrics.glareRatio * 60);
+    const balanceScore = clamp(84 - metrics.glareRatio * 140 - metrics.darkRatio * 115 - Math.abs(metrics.averageBrightness - 132) * 0.16);
+    const confidence = clamp(70 + metrics.greenRatio * 34 - metrics.glareRatio * 85 - metrics.darkRatio * 70);
+    return { colorScore, fatScore, marblingScore, balanceScore, confidence };
+  }
+
+  if (mode === "tomato") {
+    const colorScore = clamp(38 + metrics.redRatio * 185 + metrics.averageSaturation * 0.25 - metrics.brownRatio * 90 - metrics.darkRatio * 34);
+    const fatScore = clamp(58 + metrics.redRatio * 92 - metrics.brownRatio * 140 - metrics.darkRatio * 58 - metrics.glareRatio * 38);
+    const marblingScore = clamp(72 - metrics.brownRatio * 170 - metrics.darkRatio * 76 - metrics.glareRatio * 45);
+    const balanceScore = clamp(83 - metrics.glareRatio * 135 - metrics.darkRatio * 112 - Math.abs(metrics.averageBrightness - 130) * 0.14);
+    const confidence = clamp(70 + metrics.redRatio * 30 - metrics.glareRatio * 82 - metrics.darkRatio * 70);
+    return { colorScore, fatScore, marblingScore, balanceScore, confidence };
+  }
+
+  return metrics.scores;
+}
+
+function buildReason(metrics, preference, mode = "beef-grill") {
   const scores = metrics.scores;
   const preferenceText = {
     balanced: "균형 기준으로 볼 때",
     lean: "담백한 취향 기준으로 볼 때",
     rich: "고소한 지방감 기준으로 볼 때",
     tender: "부드러운 식감 기준으로 볼 때",
+    vivid: "색 선명도 기준으로 볼 때",
+    crisp: "싱싱함 기준으로 볼 때",
+    firm: "탄탄함 기준으로 볼 때",
+    clean: "상처가 적은 후보 기준으로 볼 때",
     value: "가성비 기준으로 볼 때",
-  }[preference];
+  }[preference] || "균형 기준으로 볼 때";
 
   const details = [];
 
   if (scores.colorScore >= 70) details.push("색감이 비교적 안정적으로 보입니다");
-  if (scores.fatScore >= 65) details.push("지방감이 충분해 보입니다");
-  if (scores.marblingScore >= 65) details.push("밝은 지방 영역이 고르게 분포한 편입니다");
+  if (mode === "leafy-greens") {
+    if (scores.fatScore >= 65) details.push("잎의 생기가 있어 보입니다");
+    if (scores.marblingScore >= 65) details.push("상처나 변색 의심 신호가 적은 편입니다");
+  } else if (mode === "tomato") {
+    if (scores.fatScore >= 65) details.push("표면이 비교적 안정적으로 보입니다");
+    if (scores.marblingScore >= 65) details.push("상처나 무름 의심 신호가 적은 편입니다");
+  } else {
+    if (scores.fatScore >= 65) details.push("지방감이 충분해 보입니다");
+    if (scores.marblingScore >= 65) details.push("밝은 지방 영역이 고르게 분포한 편입니다");
+  }
   if (scores.balanceScore >= 70) details.push("사진상 반사나 어두운 영역이 적습니다");
 
   if (details.length === 0) {
@@ -790,21 +1096,93 @@ function buildReason(metrics, preference) {
   return `${preferenceText} ${details.slice(0, 2).join(", ")}.`;
 }
 
-function buildAnalysis(metrics) {
+function buildAnalysis(metrics, mode = "beef-grill") {
+  if (mode === "leafy-greens") {
+    return buildLeafyAnalysis(metrics);
+  }
+  if (mode === "tomato") {
+    return buildTomatoAnalysis(metrics);
+  }
+
   const { scores, redRatio, whiteRatio, glareRatio, darkRatio, averageBrightness, averageWarmth } = metrics;
-  const fatAmount = describeFatAmount(whiteRatio, scores.fatScore);
-  const fatDistribution = describeFatDistribution(redRatio, whiteRatio, glareRatio, darkRatio);
+  const primarySignal = describeFatAmount(whiteRatio, scores.fatScore);
+  const distributionSignal = describeFatDistribution(redRatio, whiteRatio, glareRatio, darkRatio);
   const colorTone = describeColorTone(scores.colorScore, averageWarmth, averageBrightness, darkRatio);
   const surfaceSignal = describeSurfaceSignal(scores.balanceScore, glareRatio, darkRatio);
   const overall = describeOverall(scores);
 
+  return normalizeAnalysisFields({ primarySignal, distributionSignal, colorTone, surfaceSignal, overall });
+}
+
+function buildLeafyAnalysis(metrics) {
+  const { scores, greenRatio, brownRatio, glareRatio, darkRatio, averageBrightness } = metrics;
+  return normalizeAnalysisFields({
+    primarySignal:
+      scores.fatScore >= 70
+        ? "잎의 초록색 비중과 밝기가 비교적 안정적이라 사진상 생기가 있어 보입니다."
+        : "잎의 생기 판단은 보통 수준이며, 누렇게 뜬 부분이나 마른 가장자리를 직접 확인해 주세요.",
+    distributionSignal:
+      greenRatio > 0.22 && brownRatio < 0.08
+        ? "색이 한쪽에 크게 무너지지 않고 비교적 균일하게 보입니다."
+        : "색 균일도 판단이 제한적이거나 일부 변색 의심 영역이 있을 수 있습니다.",
+    colorTone:
+      scores.colorScore >= 68
+        ? "초록색 계열이 비교적 선명하게 보여 잎채소 후보로 무난해 보입니다."
+        : "사진상 색이 탁하거나 조명 영향이 있어 실제 색을 한 번 더 확인하는 편이 좋습니다.",
+    surfaceSignal:
+      glareRatio > 0.14 || darkRatio > 0.26
+        ? "반사나 어두운 영역 때문에 시든 정도와 상처 판단 신뢰도가 낮을 수 있습니다."
+        : "큰 반사나 어두운 영역은 적어 표면 상태를 비교하기 좋은 편입니다.",
+    overall:
+      scores.confidence >= 68 && averageBrightness > 82
+        ? "사진상으로는 색과 생기가 비교적 안정적이라 구매 후보로 검토할 만합니다."
+        : "사진 조건 또는 색 정보가 부족해 실제 잎의 탄력과 시든 부분을 직접 확인해 주세요.",
+  });
+}
+
+function buildTomatoAnalysis(metrics) {
+  const { scores, redRatio, brownRatio, glareRatio, darkRatio } = metrics;
+  return normalizeAnalysisFields({
+    primarySignal:
+      redRatio > 0.18 && scores.colorScore >= 65
+        ? "붉은 색이 비교적 잘 잡혀 사진상 익은 정도가 안정적으로 보입니다."
+        : "붉은 색 정보가 적거나 조명 영향이 있어 익은 정도 판단은 제한적입니다.",
+    distributionSignal:
+      scores.marblingScore >= 65
+        ? "전체적인 형태와 색 분포가 비교적 무난하게 보입니다."
+        : "색이나 형태가 균일하다고 보기에는 정보가 부족해 직접 확인이 필요합니다.",
+    colorTone:
+      scores.colorScore >= 70
+        ? "색이 비교적 선명하고 균일하게 보여 토마토 후보로 무난해 보입니다."
+        : "색이 탁하거나 부분적으로 어둡게 보여 실제 표면 색을 확인해 주세요.",
+    surfaceSignal:
+      brownRatio > 0.06 || darkRatio > 0.25 || glareRatio > 0.14
+        ? "상처, 무름, 반사로 보일 수 있는 영역이 있어 표면을 직접 확인하는 편이 좋습니다."
+        : "사진상 큰 상처나 강한 반사 신호는 적어 보입니다.",
+    overall:
+      scores.confidence >= 68
+        ? "사진상 색과 표면 단서가 비교적 안정적이라 구매 후보로 검토할 만합니다."
+        : "사진 조건이 제한적이라 실제 단단함과 표면 상처를 함께 확인해 주세요.",
+  });
+}
+
+function normalizeAnalysisFields(analysis = {}) {
+  const primarySignal = analysis.primarySignal || analysis.fatAmount || "";
+  const distributionSignal = analysis.distributionSignal || analysis.fatDistribution || "";
   return {
-    fatAmount,
-    fatDistribution,
-    colorTone,
-    surfaceSignal,
-    overall,
+    primarySignal,
+    distributionSignal,
+    fatAmount: primarySignal,
+    fatDistribution: distributionSignal,
+    colorTone: analysis.colorTone || "",
+    surfaceSignal: analysis.surfaceSignal || "",
+    overall: analysis.overall || "",
   };
+}
+
+function analysisValue(analysis, key) {
+  const normalized = normalizeAnalysisFields(analysis);
+  return normalized[key] || "";
 }
 
 function describeFatAmount(whiteRatio, fatScore) {
@@ -873,35 +1251,81 @@ function describeOverall(scores) {
   return "사진 기준 강점은 크지 않아 다른 후보와 비교해서 신중히 고르는 편이 좋습니다.";
 }
 
-function buildWarnings(metrics) {
+function buildWarnings(metrics, mode = "beef-grill") {
   const warnings = [];
 
   if (metrics.glareRatio > 0.12) warnings.push("포장 반사가 있어 색 판단 신뢰도가 낮을 수 있음");
   if (metrics.darkRatio > 0.25) warnings.push("사진이 어두워 실제 색과 다르게 보일 수 있음");
-  if (metrics.redRatio < 0.1) warnings.push("고기 영역이 작거나 색 정보가 부족할 수 있음");
+  if (mode === "leafy-greens") {
+    if (metrics.greenRatio < 0.1) warnings.push("야채 영역이 작거나 초록색 정보가 부족할 수 있음");
+    if (metrics.brownRatio > 0.08) warnings.push("변색 또는 마른 부분처럼 보이는 영역이 있을 수 있음");
+  } else if (mode === "tomato") {
+    if (metrics.redRatio < 0.1) warnings.push("토마토 영역이 작거나 붉은 색 정보가 부족할 수 있음");
+    if (metrics.brownRatio > 0.07) warnings.push("상처 또는 무름처럼 보이는 영역이 있을 수 있음");
+  } else if (metrics.redRatio < 0.1) {
+    warnings.push("고기 영역이 작거나 색 정보가 부족할 수 있음");
+  }
 
   return warnings;
 }
 
 function renderResult(result) {
+  const config = PRODUCT_MODES[result.productMode || state.productMode] || currentMode();
   const { winner, ranked, confidenceLabel: label } = result;
   const sourceLabel = result.source === "openai" ? "LLM" : result.source === "local-fallback" ? "임시 분석" : "로컬";
   confidenceBadge.textContent = `${sourceLabel} 신뢰도 ${label}`;
   const tasteWinner = result.tasteWinner || winner;
   const valueWinner = result.valueWinner || winner;
+  const bestTags = analysisTags(tasteWinner).slice(0, 3);
+  const bestWarnings = (tasteWinner.warnings || []).slice(0, 2);
 
   recommendationCard.innerHTML = `
-    <div class="recommendation-grid">
-      <div>
-        <span class="recommendation-kicker">맛 우선</span>
+    <div class="best-pick-layout">
+      <div class="best-pick-image">
+        <img src="${tasteWinner.url}" alt="${tasteWinner.label} 추천 후보 사진" />
+        <div class="result-image-tags">
+          ${bestTags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+        </div>
+        ${productSelectionOverlay(tasteWinner)}
+      </div>
+      <div class="best-pick-content">
+        <span class="recommendation-kicker">BEST PICK · 사진상 가장 좋아 보이는 후보</span>
         <h3>${tasteWinner.label} 추천</h3>
         <p>${result.tasteSummary || result.summary || `${tasteWinner.label}가 사진상 품질 기준으로 좋아 보입니다.`}</p>
+        <div class="best-pick-meta">
+          <span>사진 기반 참고 점수 ${tasteWinner.score}점</span>
+          <span>${sourceLabel} 신뢰도 ${label}</span>
+          <span>${purchaseSummary(tasteWinner.purchase)}</span>
+        </div>
+        ${label === "낮음" ? `<p class="low-confidence-copy">사진 조건 때문에 임시 추천에 가깝습니다. 가능하면 반사가 적고 밝은 사진으로 다시 비교해보세요.</p>` : ""}
+        <div class="best-pick-notes">
+          <div>
+            <strong>추천 이유</strong>
+            <p>${tasteWinner.analysis?.overall || tasteWinner.reason}</p>
+          </div>
+          <div>
+            <strong>주의할 점</strong>
+            <p>${bestWarnings.length ? bestWarnings.map(escapeHtml).join(" · ") : "사진 기준 큰 주의 신호는 적습니다."}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="recommendation-split">
+      <div>
+        <span class="recommendation-kicker">${config.primaryRecommendationLabel}</span>
+        <strong>${tasteWinner.label}</strong>
+        <p>${result.tasteSummary || config.primaryFallback}</p>
       </div>
       <div>
         <span class="recommendation-kicker">가성비</span>
-        <h3>${valueWinner.label} 추천</h3>
+        <strong>${valueWinner.label}</strong>
         <p>${result.valueSummary || "가격과 중량 정보가 충분하면 가성비 추천에 함께 반영합니다."}</p>
+        <small>OCR/가격표 정보는 실제 라벨과 한 번 더 확인해 주세요.</small>
       </div>
+    </div>
+    <div class="comparison-summary">
+      <span class="recommendation-kicker">후보 간 핵심 차이</span>
+      <p>${result.comparisonSummary || buildComparisonSummary(ranked)}</p>
     </div>
     ${result.fallbackMessage ? `<p class="fallback-copy">LLM 호출 실패로 임시 분석을 표시합니다: ${result.fallbackMessage}</p>` : ""}
   `;
@@ -916,19 +1340,29 @@ function renderResult(result) {
       return `
         <article class="rank-card">
           <div class="rank-number">${index + 1}</div>
-          <img class="rank-image" src="${candidate.url}" alt="${candidate.label} 원본 사진" />
+          <div class="rank-image-wrap">
+            <img class="rank-image" src="${candidate.url}" alt="${candidate.label} 원본 사진" />
+            <div class="result-image-tags compact">
+              ${analysisTags(candidate)
+                .slice(0, 3)
+                .map((tag) => `<span>${escapeHtml(tag)}</span>`)
+                .join("")}
+            </div>
+            ${productSelectionOverlay(candidate)}
+          </div>
           <div class="rank-content">
             <h3>${candidate.label}</h3>
             <p class="purchase-summary">${purchaseSummary(candidate.purchase)}</p>
             <p>${candidate.reason} ${warnings}</p>
+            ${candidate.bestUse ? `<p class="best-use">추천 상황: ${escapeHtml(candidate.bestUse)}</p>` : ""}
             <div class="analysis-block">
-              <h4>고기 분석</h4>
+              <h4>${config.resultDetailTitle}</h4>
               <ul>
-                <li><strong>지방량</strong>${candidate.analysis.fatAmount}</li>
-                <li><strong>지방 분포</strong>${candidate.analysis.fatDistribution}</li>
-                <li><strong>색상</strong>${candidate.analysis.colorTone}</li>
-                <li><strong>표면/사진</strong>${candidate.analysis.surfaceSignal}</li>
-                <li><strong>종합</strong>${candidate.analysis.overall}</li>
+                <li><strong>${config.analysisLabels.primarySignal}</strong>${analysisValue(candidate.analysis, "primarySignal")}</li>
+                <li><strong>${config.analysisLabels.distributionSignal}</strong>${analysisValue(candidate.analysis, "distributionSignal")}</li>
+                <li><strong>${config.analysisLabels.colorTone}</strong>${candidate.analysis.colorTone}</li>
+                <li><strong>${config.analysisLabels.surfaceSignal}</strong>${candidate.analysis.surfaceSignal}</li>
+                <li><strong>${config.analysisLabels.overall}</strong>${candidate.analysis.overall}</li>
               </ul>
             </div>
           </div>
@@ -948,6 +1382,306 @@ function renderResult(result) {
 
   resultSection.classList.remove("hidden");
   resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  saveAnalysisHistory(result);
+}
+
+function analysisTags(candidate) {
+  const tags = [];
+  const analysis = candidate.analysis || {};
+  const warnings = candidate.warnings || [];
+  const mode = candidate.productMode || state.productMode;
+
+  if (Array.isArray(candidate.tags)) {
+    tags.push(...candidate.tags);
+  }
+  if (mode === "leafy-greens") {
+    if (candidate.metrics?.scores?.colorScore >= 65) tags.push("색 선명한 편");
+    if (candidate.metrics?.scores?.fatScore >= 65) tags.push("생기 있어 보임");
+    if (warnings.some((warning) => /변색|어두|상처|작음/.test(warning))) tags.push("상태 확인 필요");
+    if (candidate.metrics?.scores?.balanceScore >= 70) tags.push("사진 품질 양호");
+    return uniqueStrings(tags.map((tag) => String(tag).trim()).filter(Boolean)).slice(0, 3);
+  }
+
+  if (mode === "tomato") {
+    if (candidate.metrics?.scores?.colorScore >= 65) tags.push("색 균일한 편");
+    if (candidate.metrics?.scores?.fatScore >= 65) tags.push("표면 안정적");
+    if (warnings.some((warning) => /무름|상처|어두|반사/.test(warning))) tags.push("표면 확인 필요");
+    if (candidate.metrics?.scores?.balanceScore >= 70) tags.push("사진 품질 양호");
+    return uniqueStrings(tags.map((tag) => String(tag).trim()).filter(Boolean)).slice(0, 3);
+  }
+
+  if (candidate.metrics?.scores?.fatScore >= 65 || /고르게|충분|지방감/.test(analysisValue(analysis, "distributionSignal") || analysisValue(analysis, "primarySignal"))) {
+    tags.push("지방 고른 편");
+  }
+  if (candidate.metrics?.scores?.colorScore >= 68 || /붉|선명|안정/.test(analysis.colorTone || "")) {
+    tags.push("색상 안정적");
+  }
+  if (warnings.some((warning) => /반사/.test(warning))) {
+    tags.push("반사 주의");
+  } else if (candidate.metrics?.scores?.balanceScore >= 70) {
+    tags.push("사진 품질 양호");
+  }
+  if (warnings.some((warning) => /어두/.test(warning))) {
+    tags.push("조명 영향 가능");
+  }
+
+  return uniqueStrings(tags.map((tag) => String(tag).trim()).filter(Boolean)).slice(0, 3);
+}
+
+function buildComparisonSummary(ranked) {
+  if (!ranked?.length) return "후보별 사진 정보가 부족해 차이를 요약하기 어렵습니다.";
+  const first = ranked[0];
+  const second = ranked[1];
+  if (!second) {
+    return `${first.label}는 ${first.analysis?.overall || first.reason || "사진상 비교 가능한 단서가 있습니다."}`;
+  }
+
+  const firstTags = analysisTags(first).slice(0, 2).join(", ") || "사진상 강점";
+  const secondWarnings = (second.warnings || []).slice(0, 1).join(", ");
+  const gap = Math.abs((first.score || 0) - (second.score || 0));
+  const scorePhrase = gap >= 12 ? "점수 차이가 비교적 뚜렷합니다" : "점수 차이는 크지 않아 취향과 가격을 함께 보면 좋습니다";
+  const warningPhrase = secondWarnings ? ` ${second.label}는 ${secondWarnings} 점을 확인해 주세요.` : "";
+
+  return `${first.label}는 ${firstTags} 측면에서 앞서 보입니다. ${second.label}와는 ${scorePhrase}.${warningPhrase}`.slice(0, 220);
+}
+
+function buildQualityWarnings(metrics, productRect) {
+  const warnings = [];
+  if (metrics.glareRatio > 0.12) warnings.push("반사 심함");
+  if (metrics.darkRatio > 0.25 || metrics.averageBrightness < 78) warnings.push("사진 어두움");
+  if (state.productMode === "leafy-greens") {
+    if (metrics.greenRatio < 0.1) warnings.push("야채 영역 작음");
+    if (metrics.brownRatio > 0.08) warnings.push("변색 의심");
+  } else if (state.productMode === "tomato") {
+    if (metrics.redRatio < 0.1) warnings.push("토마토 영역 작음");
+    if (metrics.brownRatio > 0.07) warnings.push("상처/무름 의심");
+  } else if (metrics.redRatio < 0.1) {
+    warnings.push("고기 영역 작음");
+  }
+  if (productRect && (productRect.x < 0.02 || productRect.y < 0.02 || productRect.x + productRect.width > 0.98 || productRect.y + productRect.height > 0.98)) {
+    warnings.push("제품 잘림 가능");
+  }
+  return warnings;
+}
+
+function buildCandidateWarnings(candidate) {
+  return uniqueStrings([...buildWarnings(candidate.metrics, candidate.productMode || state.productMode), ...(candidate.qualityWarnings || [])]).slice(0, 5);
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.filter(Boolean).map((value) => String(value)))];
+}
+
+async function saveAnalysisHistory(result) {
+  try {
+    const tasteWinner = result.tasteWinner || result.winner || result.ranked?.[0];
+    const valueWinner = result.valueWinner || tasteWinner;
+    if (!tasteWinner) return;
+
+    const thumbnail = await createHistoryThumbnail(tasteWinner.url);
+    const item = {
+      id: `history-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      thumbnail,
+      source: result.source,
+      productMode: result.productMode || state.productMode,
+      productModeLabel: (PRODUCT_MODES[result.productMode || state.productMode] || currentMode()).label,
+      confidenceLabel: result.confidenceLabel,
+      tasteLabel: tasteWinner.label,
+      valueLabel: valueWinner.label,
+      summary: result.tasteSummary || result.summary || tasteWinner.reason || "",
+      purchase: purchaseSummary(tasteWinner.purchase),
+      candidateCount: result.ranked?.length || 0,
+      snapshot: buildHistorySnapshot(result, thumbnail),
+    };
+    const next = [item, ...readHistory()].slice(0, MAX_HISTORY_ITEMS);
+    writeHistory(next);
+    renderHistory();
+  } catch (error) {
+    console.warn("Failed to save analysis history.", error);
+  }
+}
+
+function buildHistorySnapshot(result, thumbnail) {
+  const productMode = result.productMode || state.productMode;
+  const config = PRODUCT_MODES[productMode] || currentMode();
+  const ranked = (result.ranked || []).slice(0, 5).map((candidate, index) => ({
+    label: candidate.label,
+    score: candidate.score,
+    reason: candidate.reason,
+    purchase: purchaseSummary(candidate.purchase),
+    warnings: (candidate.warnings || []).slice(0, 3),
+    tags: analysisTags(candidate).slice(0, 3),
+    analysis: normalizeAnalysisFields(candidate.analysis),
+    bestUse: candidate.bestUse || "",
+    rank: index + 1,
+  }));
+
+  return {
+    version: 1,
+    productMode,
+    productModeLabel: config.label,
+    thumbnail,
+    source: result.source,
+    confidenceLabel: result.confidenceLabel,
+    tasteLabel: result.tasteWinner?.label || result.winner?.label || ranked[0]?.label || "",
+    valueLabel: result.valueWinner?.label || ranked[0]?.label || "",
+    tasteSummary: result.tasteSummary || result.summary || "",
+    valueSummary: result.valueSummary || "",
+    comparisonSummary: result.comparisonSummary || buildComparisonSummary(result.ranked || []),
+    fallbackMessage: result.fallbackMessage || "",
+    notices: result.notices || [],
+    ranked,
+  };
+}
+
+function restoreHistoryResult(historyId) {
+  const item = readHistory().find((entry) => entry.id === historyId);
+  if (!item?.snapshot) return;
+
+  const snapshot = item.snapshot;
+  const config = PRODUCT_MODES[snapshot.productMode] || currentMode();
+  const sourceLabel = snapshot.source === "openai" ? "LLM" : snapshot.source === "local-fallback" ? "임시 분석" : "로컬";
+  confidenceBadge.textContent = `${sourceLabel} 신뢰도 ${snapshot.confidenceLabel || "보통"}`;
+
+  recommendationCard.innerHTML = `
+    <div class="best-pick-layout history-result">
+      <div class="best-pick-image">
+        <img src="${snapshot.thumbnail}" alt="${escapeHtml(snapshot.tasteLabel)} 기록 썸네일" />
+      </div>
+      <div class="best-pick-content">
+        <span class="recommendation-kicker">SAVED PICK · ${escapeHtml(snapshot.productModeLabel || config.label)}</span>
+        <h3>${escapeHtml(snapshot.tasteLabel || "저장된 추천")}</h3>
+        <p>${escapeHtml(snapshot.tasteSummary || "사진 기반 참고 결과입니다.")}</p>
+        <div class="best-pick-meta">
+          <span>${sourceLabel} 신뢰도 ${escapeHtml(snapshot.confidenceLabel || "보통")}</span>
+          <span>저장된 분석 기록</span>
+        </div>
+      </div>
+    </div>
+    <div class="recommendation-split">
+      <div>
+        <span class="recommendation-kicker">${config.primaryRecommendationLabel}</span>
+        <strong>${escapeHtml(snapshot.tasteLabel || "추천 후보")}</strong>
+        <p>${escapeHtml(snapshot.tasteSummary || config.primaryFallback)}</p>
+      </div>
+      <div>
+        <span class="recommendation-kicker">가성비</span>
+        <strong>${escapeHtml(snapshot.valueLabel || snapshot.tasteLabel || "추천 후보")}</strong>
+        <p>${escapeHtml(snapshot.valueSummary || "저장 당시 가격 정보 기준의 참고 결과입니다.")}</p>
+      </div>
+    </div>
+    <div class="comparison-summary">
+      <span class="recommendation-kicker">후보 간 핵심 차이</span>
+      <p>${escapeHtml(snapshot.comparisonSummary || "저장된 비교 요약이 없습니다.")}</p>
+    </div>
+  `;
+
+  rankingList.innerHTML = (snapshot.ranked || [])
+    .map(
+      (candidate) => `
+        <article class="rank-card compact-history">
+          <div class="rank-number">${candidate.rank}</div>
+          <div class="rank-content">
+            <h3>${escapeHtml(candidate.label)}</h3>
+            <p class="purchase-summary">${escapeHtml(candidate.purchase || "구매 정보 미입력")}</p>
+            <p>${escapeHtml(candidate.reason || "사진 기반 참고 결과입니다.")}</p>
+            <div class="analysis-block">
+              <h4>${escapeHtml(config.resultDetailTitle)}</h4>
+              <ul>
+                <li><strong>${escapeHtml(config.analysisLabels.primarySignal)}</strong>${escapeHtml(analysisValue(candidate.analysis, "primarySignal"))}</li>
+                <li><strong>${escapeHtml(config.analysisLabels.distributionSignal)}</strong>${escapeHtml(analysisValue(candidate.analysis, "distributionSignal"))}</li>
+                <li><strong>${escapeHtml(config.analysisLabels.colorTone)}</strong>${escapeHtml(candidate.analysis?.colorTone || "")}</li>
+                <li><strong>${escapeHtml(config.analysisLabels.surfaceSignal)}</strong>${escapeHtml(candidate.analysis?.surfaceSignal || "")}</li>
+                <li><strong>${escapeHtml(config.analysisLabels.overall)}</strong>${escapeHtml(candidate.analysis?.overall || "")}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="score">${Number(candidate.score || 0)}점</div>
+        </article>
+      `,
+    )
+    .join("");
+
+  const noticeBox = document.querySelector(".notice-box");
+  if (noticeBox) {
+    noticeBox.textContent = (snapshot.notices?.length ? snapshot.notices : ["저장된 사진 기반 참고 결과입니다."]).join(" ");
+  }
+
+  resultSection.classList.remove("hidden");
+  resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function readHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY) || localStorage.getItem(LEGACY_HISTORY_KEY) || "[]";
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHistory(history) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY_ITEMS)));
+  localStorage.removeItem(LEGACY_HISTORY_KEY);
+}
+
+function renderHistory() {
+  if (!historySection || !historyList) return;
+  const history = readHistory();
+  historySection.classList.toggle("hidden", history.length === 0);
+  historyList.innerHTML = history
+    .map(
+      (item) => `
+        <article class="history-card">
+          <img src="${item.thumbnail}" alt="${escapeHtml(item.tasteLabel)} 기록 썸네일" />
+          <div>
+            <strong>${escapeHtml(item.tasteLabel)} 추천</strong>
+            <span>${escapeHtml(item.productModeLabel || "신선식품")} · ${formatHistoryDate(item.createdAt)} · 후보 ${item.candidateCount}개 · ${escapeHtml(item.confidenceLabel || "신뢰도 보통")}</span>
+            <p>${escapeHtml(item.summary || "사진상 품질 기준으로 추천했습니다.")}</p>
+            <small>가성비: ${escapeHtml(item.valueLabel || item.tasteLabel)} · ${escapeHtml(item.purchase || "구매 정보 미입력")}</small>
+          </div>
+          <div class="history-actions">
+            <button data-restore-history="${escapeHtml(item.id)}" class="tiny-button" type="button">다시 보기</button>
+            <button data-delete-history="${escapeHtml(item.id)}" class="tiny-button ghost-history-button" type="button">삭제</button>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function formatHistoryDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "방금";
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function createHistoryThumbnail(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 180;
+      canvas.height = 135;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#171311";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.62));
+    };
+    image.onerror = reject;
+    image.src = url;
+  });
 }
 
 function normalizePurchase(purchase) {
@@ -1020,7 +1754,7 @@ async function createDisplayImageUrl(file) {
   }
 }
 
-function detectProductRect(url) {
+function detectProductRect(url, mode = "beef-grill") {
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => {
@@ -1032,7 +1766,7 @@ function detectProductRect(url) {
       const context = canvas.getContext("2d", { willReadFrequently: true });
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      const bounds = detectContentBounds(pixels, canvas.width, canvas.height);
+      const bounds = detectContentBounds(pixels, canvas.width, canvas.height, mode);
       resolve(bounds || defaultProductRect());
     };
     image.onerror = () => resolve(defaultProductRect());
@@ -1040,7 +1774,7 @@ function detectProductRect(url) {
   });
 }
 
-function detectContentBounds(pixels, width, height) {
+function detectContentBounds(pixels, width, height, mode = "beef-grill") {
   let minX = width;
   let minY = height;
   let maxX = 0;
@@ -1056,10 +1790,14 @@ function detectContentBounds(pixels, width, height) {
       const brightness = (r + g + b) / 3;
       const saturation = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
       const meatLike = r > 80 && r > g * 1.04 && r > b * 1.08;
+      const leafyLike = g > 70 && g > r * 0.92 && g > b * 1.02;
+      const tomatoLike = r > 85 && r > g * 1.02 && r > b * 1.08;
       const labelLike = brightness > 135 && saturation < 0.28;
       const edgeLike = brightness < 80 || saturation > 0.22;
 
-      if (meatLike || labelLike || edgeLike) {
+      const itemLike = mode === "leafy-greens" ? leafyLike : mode === "tomato" ? tomatoLike : meatLike;
+
+      if (itemLike || labelLike || edgeLike) {
         hits += 1;
         minX = Math.min(minX, x);
         minY = Math.min(minY, y);
@@ -1241,11 +1979,14 @@ function readImageMetrics(url) {
 
 function computeMetrics(pixels) {
   let redPixels = 0;
+  let greenPixels = 0;
   let whitePixels = 0;
+  let brownPixels = 0;
   let glarePixels = 0;
   let darkPixels = 0;
   let brightnessTotal = 0;
   let warmTotal = 0;
+  let saturationTotal = 0;
   let sampled = 0;
 
   for (let index = 0; index < pixels.length; index += 16) {
@@ -1254,23 +1995,30 @@ function computeMetrics(pixels) {
     const b = pixels[index + 2];
     const brightness = (r + g + b) / 3;
     const warm = r - (g + b) / 2;
+    const saturation = Math.max(r, g, b) - Math.min(r, g, b);
 
     sampled += 1;
     brightnessTotal += brightness;
     warmTotal += warm;
+    saturationTotal += saturation;
 
     if (r > 95 && r > g * 1.08 && r > b * 1.12) redPixels += 1;
+    if (g > 80 && g > r * 1.05 && g > b * 1.04) greenPixels += 1;
     if (r > 165 && g > 145 && b > 125 && Math.abs(r - g) < 55) whitePixels += 1;
+    if (r > 72 && g > 44 && b < 72 && r > b * 1.18 && g > b * 1.05 && brightness < 150) brownPixels += 1;
     if (r > 235 && g > 225 && b > 215) glarePixels += 1;
     if (brightness < 55) darkPixels += 1;
   }
 
   const redRatio = redPixels / sampled;
+  const greenRatio = greenPixels / sampled;
   const whiteRatio = whitePixels / sampled;
+  const brownRatio = brownPixels / sampled;
   const glareRatio = glarePixels / sampled;
   const darkRatio = darkPixels / sampled;
   const averageBrightness = brightnessTotal / sampled;
   const averageWarmth = warmTotal / sampled;
+  const averageSaturation = saturationTotal / sampled;
 
   const colorScore = clamp(42 + redRatio * 150 + averageWarmth * 0.35 - darkRatio * 35 - glareRatio * 25);
   const fatScore = clamp(35 + whiteRatio * 170 - glareRatio * 70);
@@ -1280,11 +2028,14 @@ function computeMetrics(pixels) {
 
   return {
     redRatio,
+    greenRatio,
     whiteRatio,
+    brownRatio,
     glareRatio,
     darkRatio,
     averageBrightness,
     averageWarmth,
+    averageSaturation,
     scores: {
       colorScore,
       fatScore,
