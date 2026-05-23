@@ -20,6 +20,8 @@ const requiredSnippets = [
   ["restoreHistoryResult", app],
   ["ocrInsightPanel", app],
   ["ocrResult", app],
+  ["USER_PREFS_KEY", app],
+  ["savePreferenceForMode", app],
   ["normalizeProductMode", server],
   ["analysisGuidanceFor", server],
   ["normalizeAnalysisResult", server],

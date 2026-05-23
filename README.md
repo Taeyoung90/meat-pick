@@ -44,6 +44,7 @@ Users upload 2-5 candidate photos, confirm the product area to analyze, optional
   - Image analysis tags
 - Save recent analysis history in the browser with small thumbnails only
 - Restore a saved history result without storing original full-size images
+- Remember the last product category and per-category preference
 - Apply local usage limits to reduce accidental API spending
 
 ## Project Structure

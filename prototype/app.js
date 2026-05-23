@@ -41,6 +41,7 @@ const SCAN_STAGES = [
 ];
 const HISTORY_KEY = "fresh-pick-analysis-history";
 const LEGACY_HISTORY_KEY = "meat-pick-analysis-history";
+const USER_PREFS_KEY = "fresh-pick-user-preferences";
 const MAX_HISTORY_ITEMS = 8;
 const PRODUCT_MODES = {
   "beef-grill": {
@@ -145,7 +146,7 @@ const PRODUCT_MODES = {
 };
 
 const state = {
-  productMode: "beef-grill",
+  productMode: readUserPreferences().lastProductMode || "beef-grill",
   candidates: [],
   serverStatus: null,
   isAnalyzing: false,
@@ -169,6 +170,12 @@ document.querySelectorAll("input[name='productMode']").forEach((input) => {
     if (!input.checked) return;
     changeProductMode(input.value);
   });
+});
+
+preferenceGrid?.addEventListener("change", (event) => {
+  const input = event.target.closest("input[name='preference']");
+  if (!input?.checked) return;
+  savePreferenceForMode(state.productMode, input.value);
 });
 
 clearHistoryButton?.addEventListener("click", () => {
@@ -339,6 +346,7 @@ function currentMode() {
 function changeProductMode(mode) {
   if (!PRODUCT_MODES[mode] || state.productMode === mode) return;
   state.productMode = mode;
+  saveLastProductMode(mode);
   state.candidates.forEach((candidate) => URL.revokeObjectURL(candidate.url));
   state.candidates = [];
   imageInput.value = "";
@@ -349,6 +357,10 @@ function changeProductMode(mode) {
 
 function applyModeConfig() {
   const config = currentMode();
+  const prefs = readUserPreferences();
+  document.querySelectorAll("input[name='productMode']").forEach((input) => {
+    input.checked = input.value === state.productMode;
+  });
   heroEyebrow.textContent = config.heroEyebrow;
   heroTitle.textContent = config.heroTitle;
   heroCopy.textContent = config.heroCopy;
@@ -358,11 +370,12 @@ function applyModeConfig() {
   inputHint.textContent = config.hint;
   candidateHeading.textContent = config.candidateHeading;
   preferenceTitle.textContent = `${config.label} 기준`;
+  const savedPreference = prefs.byMode?.[state.productMode] || config.preferences[0]?.[0] || "balanced";
   preferenceGrid.innerHTML = config.preferences
     .map(
       ([value, label], index) => `
         <label>
-          <input type="radio" name="preference" value="${value}" ${index === 0 ? "checked" : ""} />
+          <input type="radio" name="preference" value="${value}" ${value === savedPreference || (!config.preferences.some(([candidate]) => candidate === savedPreference) && index === 0) ? "checked" : ""} />
           <span>${label}</span>
         </label>
       `,
@@ -373,6 +386,39 @@ function applyModeConfig() {
       .map((signal) => `<span>${escapeHtml(signal)}</span>`)
       .join("");
   }
+}
+
+function readUserPreferences() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(USER_PREFS_KEY) || "{}");
+    return {
+      lastProductMode: PRODUCT_MODES[parsed.lastProductMode] ? parsed.lastProductMode : "",
+      byMode: parsed.byMode && typeof parsed.byMode === "object" ? parsed.byMode : {},
+    };
+  } catch {
+    return { lastProductMode: "", byMode: {} };
+  }
+}
+
+function writeUserPreferences(next) {
+  localStorage.setItem(USER_PREFS_KEY, JSON.stringify(next));
+}
+
+function saveLastProductMode(mode) {
+  const prefs = readUserPreferences();
+  writeUserPreferences({ ...prefs, lastProductMode: PRODUCT_MODES[mode] ? mode : "beef-grill" });
+}
+
+function savePreferenceForMode(mode, preference) {
+  const prefs = readUserPreferences();
+  writeUserPreferences({
+    ...prefs,
+    lastProductMode: PRODUCT_MODES[mode] ? mode : prefs.lastProductMode,
+    byMode: {
+      ...(prefs.byMode || {}),
+      [mode]: preference,
+    },
+  });
 }
 
 async function createCandidate(file, index) {
