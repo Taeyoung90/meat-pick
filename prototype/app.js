@@ -1,6 +1,7 @@
 const imageInput = document.querySelector("#imageInput");
 const analyzeButton = document.querySelector("#analyzeButton");
 const resetButton = document.querySelector("#resetButton");
+const demoButton = document.querySelector("#demoButton");
 const candidateGrid = document.querySelector("#candidateGrid");
 const candidateCount = document.querySelector("#candidateCount");
 const inputHint = document.querySelector("#inputHint");
@@ -405,6 +406,19 @@ resetButton.addEventListener("click", () => {
   resultSection.classList.add("hidden");
 });
 
+demoButton?.addEventListener("click", async () => {
+  setAnalyzing(false);
+  state.candidates.forEach((candidate) => URL.revokeObjectURL(candidate.url));
+  state.candidates = await createDemoCandidates(state.productMode);
+  imageInput.value = "";
+  renderCandidates();
+  const preference = document.querySelector("input[name='preference']:checked")?.value || "balanced";
+  const result = analyzeCandidates(state.candidates, preference);
+  result.source = "local";
+  result.notices = ["샘플 분석은 화면 검증용 가상 이미지 기반 결과입니다.", "실제 구매 판단에는 직접 촬영한 후보 사진을 사용해 주세요."];
+  renderResult(result);
+});
+
 function currentMode() {
   return PRODUCT_MODES[state.productMode] || PRODUCT_MODES["beef-grill"];
 }
@@ -521,6 +535,211 @@ async function createCandidate(file, index) {
     ocrStatus: "",
     ocrResult: null,
   };
+}
+
+async function createDemoCandidates(mode) {
+  const samples = [0, 1, 2].map((index) => createDemoCandidateImage(mode, index));
+  return await Promise.all(
+    samples.map(async (sample, index) => {
+      const metrics = await readImageMetrics(sample.url);
+      metrics.scores = scoreMetricsForMode(metrics, mode);
+      const candidate = {
+        id: `candidate-${index + 1}`,
+        label: `${index + 1}번 후보`,
+        fileName: `demo-${mode}-${index + 1}.png`,
+        productMode: mode,
+        url: sample.url,
+        orientation: 1,
+        productRect: sample.productRect,
+        productConfirmed: true,
+        metrics,
+        qualityWarnings: buildQualityWarnings(metrics, sample.productRect),
+        purchase: {
+          price: sample.price,
+          weightGram: sample.weightGram,
+          grade: sample.grade || "",
+          origin: sample.origin,
+          cut: sample.cut,
+          expiryDate: sample.expiryDate,
+          packagedDate: sample.packagedDate,
+          discount: sample.discount || "",
+          pricePer100g: null,
+          hasLabel: true,
+        },
+        labelFile: null,
+        labelImageUrl: "",
+        ocrStatus: "샘플 라벨 정보 적용됨",
+        ocrResult: { confidence: "medium", warnings: ["샘플 데이터입니다."] },
+      };
+      updatePricePer100g(candidate);
+      return candidate;
+    }),
+  );
+}
+
+function createDemoCandidateImage(mode, index) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 960;
+  canvas.height = 720;
+  const context = canvas.getContext("2d");
+  const quality = [0.92, 0.74, 0.58][index] || 0.6;
+  const glare = index === 1 ? 0.16 : index === 2 ? 0.08 : 0.03;
+  const bruise = index === 2 ? 0.22 : index === 1 ? 0.1 : 0.03;
+
+  context.fillStyle = "#f8fbf4";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#ffffff";
+  roundRect(context, 78, 60, 804, 560, 34);
+  context.fill();
+  context.strokeStyle = "#dcebdd";
+  context.lineWidth = 5;
+  context.stroke();
+
+  if (mode === "beef-grill") {
+    drawDemoMeat(context, quality, glare, bruise);
+  } else if (mode === "tomato") {
+    drawDemoRoundProduce(context, "#d84435", "#f07c61", quality, glare, bruise);
+  } else if (mode === "apple") {
+    drawDemoRoundProduce(context, "#d63f32", "#f2b84b", quality, glare, bruise);
+  } else if (mode === "cucumber") {
+    drawDemoCucumber(context, quality, glare, bruise);
+  } else {
+    drawDemoLeafy(context, quality, glare, bruise);
+  }
+
+  drawDemoLabel(context, index);
+
+  return {
+    url: canvas.toDataURL("image/png"),
+    productRect: { x: 0.08, y: 0.08, width: 0.84, height: 0.78 },
+    price: String([9800, 7600, 6900][index]),
+    weightGram: String([420, 380, 360][index]),
+    origin: index === 0 ? "국내산" : "매장 표시",
+    cut: currentMode().label,
+    packagedDate: "2026-05-24",
+    expiryDate: "2026-05-27",
+    discount: index === 2 ? "10%" : "",
+  };
+}
+
+function drawDemoMeat(context, quality, glare, bruise) {
+  context.save();
+  roundRect(context, 160, 125, 560, 330, 26);
+  context.clip();
+  context.fillStyle = `rgb(${Math.round(175 * quality)}, ${Math.round(54 + 35 * quality)}, ${Math.round(48 + 35 * quality)})`;
+  context.fillRect(160, 125, 560, 330);
+  context.strokeStyle = "rgba(255, 232, 215, 0.78)";
+  context.lineWidth = 16;
+  for (let index = 0; index < 7; index += 1) {
+    context.beginPath();
+    context.moveTo(140, 150 + index * 48);
+    context.bezierCurveTo(280, 110 + index * 52, 420, 220 + index * 24, 740, 150 + index * 44);
+    context.stroke();
+  }
+  drawDemoBruise(context, 540, 330, 90 * bruise, "rgba(90, 35, 32, 0.38)");
+  context.restore();
+  drawDemoGlare(context, glare);
+}
+
+function drawDemoLeafy(context, quality, glare, bruise) {
+  for (let index = 0; index < 9; index += 1) {
+    context.save();
+    context.translate(430 + Math.cos(index) * 110, 300 + Math.sin(index * 1.2) * 92);
+    context.rotate((index - 4) * 0.22);
+    context.fillStyle = `rgb(${Math.round(34 + 30 * quality)}, ${Math.round(118 + 82 * quality)}, ${Math.round(58 + 30 * quality)})`;
+    context.beginPath();
+    context.ellipse(0, 0, 70, 170, 0, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "rgba(255,255,255,0.34)";
+    context.lineWidth = 5;
+    context.beginPath();
+    context.moveTo(0, -130);
+    context.lineTo(0, 130);
+    context.stroke();
+    context.restore();
+  }
+  drawDemoBruise(context, 585, 392, 110 * bruise, "rgba(125, 92, 29, 0.38)");
+  drawDemoGlare(context, glare);
+}
+
+function drawDemoRoundProduce(context, colorA, colorB, quality, glare, bruise) {
+  const centers = [
+    [325, 265],
+    [500, 275],
+    [420, 430],
+  ];
+  centers.forEach(([x, y], itemIndex) => {
+    const gradient = context.createRadialGradient(x - 34, y - 42, 20, x, y, 118);
+    gradient.addColorStop(0, colorB);
+    gradient.addColorStop(1, colorA);
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.ellipse(x, y, 112, 104, itemIndex * 0.12, 0, Math.PI * 2);
+    context.fill();
+  });
+  drawDemoBruise(context, 565, 382, 118 * bruise, "rgba(78, 55, 34, 0.42)");
+  drawDemoGlare(context, glare + (1 - quality) * 0.04);
+}
+
+function drawDemoCucumber(context, quality, glare, bruise) {
+  context.save();
+  context.translate(430, 325);
+  context.rotate(-0.12);
+  for (let index = 0; index < 3; index += 1) {
+    context.fillStyle = `rgb(${Math.round(36 + 20 * quality)}, ${Math.round(126 + 76 * quality)}, ${Math.round(62 + 24 * quality)})`;
+    roundRect(context, -285 + index * 22, -95 + index * 72, 570, 82, 40);
+    context.fill();
+    context.strokeStyle = "rgba(255,255,255,0.22)";
+    context.lineWidth = 4;
+    context.stroke();
+  }
+  context.restore();
+  drawDemoBruise(context, 585, 350, 100 * bruise, "rgba(105, 88, 35, 0.38)");
+  drawDemoGlare(context, glare);
+}
+
+function drawDemoLabel(context, index) {
+  context.fillStyle = "rgba(255, 255, 255, 0.94)";
+  roundRect(context, 610, 465, 190, 105, 12);
+  context.fill();
+  context.strokeStyle = "#dcebdd";
+  context.lineWidth = 3;
+  context.stroke();
+  context.fillStyle = "#1f2a23";
+  context.font = "700 24px Arial";
+  context.fillText(`${[9800, 7600, 6900][index].toLocaleString("ko-KR")}원`, 632, 508);
+  context.font = "600 16px Arial";
+  context.fillText(`${[420, 380, 360][index]}g`, 634, 538);
+}
+
+function drawDemoBruise(context, x, y, radius, color) {
+  if (radius <= 4) return;
+  context.fillStyle = color;
+  context.beginPath();
+  context.ellipse(x, y, radius, radius * 0.72, -0.4, 0, Math.PI * 2);
+  context.fill();
+}
+
+function drawDemoGlare(context, amount) {
+  if (amount <= 0.04) return;
+  context.fillStyle = `rgba(255, 255, 255, ${Math.min(0.56, amount * 2.4)})`;
+  context.beginPath();
+  context.ellipse(385, 210, 185, 42, -0.34, 0, Math.PI * 2);
+  context.fill();
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
 }
 
 function renderCandidates() {
