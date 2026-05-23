@@ -58,6 +58,7 @@ Users upload 2-5 candidate photos, confirm the product area to analyze, optional
 ```text
 docs/
   fresh-pick-product-spec.md
+  qa-checklist.md
   meat-selection-product-plan.md
   meat-selection-design.md
   mvp-development-spec.md
@@ -115,6 +116,12 @@ docs/fresh-pick-product-spec.md
 ```
 
 The older beef-selection docs are kept as early planning and decision history.
+
+The screen QA flow is documented in:
+
+```text
+docs/qa-checklist.md
+```
 
 ## API Key Security
 

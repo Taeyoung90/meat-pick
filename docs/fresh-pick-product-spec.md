@@ -78,6 +78,7 @@ Fresh Pick은 마트 진열대 앞에서 사용자가 여러 신선식품 후보
 
 ## 회귀 테스트 기준
 
+- 화면 QA 흐름은 `docs/qa-checklist.md`를 따른다.
 - 모든 상품 모드는 HTML 선택지, 프론트 `PRODUCT_MODES`, 백엔드 `normalizeProductMode`/프롬프트 가이드에 동시에 존재해야 한다.
 - 야채/과일 모드 설정과 백엔드 가이드에는 고기 전용 표현이 섞이면 안 된다.
 - 공통 분석 필드 `primarySignal`, `distributionSignal`, `colorTone`, `surfaceSignal`, `overall`은 프론트와 백엔드에 모두 존재해야 한다.

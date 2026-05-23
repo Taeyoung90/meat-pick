@@ -61,6 +61,7 @@ Fresh Pick은 마트에서 신선식품 후보를 사진으로 비교하고, 사
 ```text
 docs/
   fresh-pick-product-spec.md
+  qa-checklist.md
   meat-selection-product-plan.md
   meat-selection-design.md
   mvp-development-spec.md
@@ -118,6 +119,12 @@ docs/fresh-pick-product-spec.md
 ```
 
 기존 소고기 MVP 문서는 초기 아이디어와 의사결정 기록으로 남겨두었습니다.
+
+화면 QA 흐름은 아래 문서에 정리되어 있습니다.
+
+```text
+docs/qa-checklist.md
+```
 
 ## API Key 보안
 
